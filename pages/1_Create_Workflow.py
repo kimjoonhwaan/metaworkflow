@@ -18,6 +18,61 @@ from src.services import WorkflowService, FolderService
 from src.database.models import WorkflowStatus
 from src.utils import CodeValidator
 
+def _format_ai_response(content):
+    """Format AI response to be more user-friendly"""
+    try:
+        # Try to parse as JSON first
+        if content.strip().startswith('{'):
+            data = json.loads(content)
+            
+            # If it's a workflow response with questions
+            if isinstance(data, dict) and "questions" in data:
+                workflow = data.get("workflow", {})
+                questions = data.get("questions", [])
+                
+                formatted = []
+                
+                # Add workflow info
+                if workflow:
+                    formatted.append(f"**워크플로우명:** {workflow.get('name', 'N/A')}")
+                    formatted.append(f"**설명:** {workflow.get('description', 'N/A')}")
+                    formatted.append("")
+                
+                # Add questions
+                if questions:
+                    formatted.append("**질문사항:**")
+                    for i, q in enumerate(questions, 1):
+                        formatted.append(f"{i}. {q}")
+                    formatted.append("")
+                    formatted.append("위 질문들에 답변해주시면 완전한 워크플로우를 생성하겠습니다.")
+                
+                return "\n".join(formatted)
+            
+            # If it's a complete workflow
+            elif isinstance(data, dict) and "workflow" in data:
+                workflow = data["workflow"]
+                formatted = []
+                
+                formatted.append(f"**워크플로우명:** {workflow.get('name', 'N/A')}")
+                formatted.append(f"**설명:** {workflow.get('description', 'N/A')}")
+                
+                steps = workflow.get("steps", [])
+                if steps:
+                    formatted.append(f"**스텝 수:** {len(steps)}개")
+                    formatted.append("")
+                    formatted.append("**스텝 목록:**")
+                    for i, step in enumerate(steps, 1):
+                        formatted.append(f"{i}. {step.get('name', 'Unnamed')} ({step.get('step_type', 'Unknown')})")
+                
+                return "\n".join(formatted)
+        
+        # If not JSON or doesn't match expected format, return as is
+        return content
+        
+    except json.JSONDecodeError:
+        # If it's not valid JSON, return as is
+        return content
+
 st.set_page_config(
     page_title="워크플로우 생성",
     page_icon="🤖",
@@ -165,7 +220,7 @@ col_chat, col_workflow = st.columns([1, 1])
 with col_chat:
     st.subheader("💬 AI와 대화하기")
     
-    # Display conversation history
+            # Display conversation history
     if st.session_state.conversation_history:
         chat_container = st.container(height=400)
         with chat_container:
@@ -178,7 +233,9 @@ with col_chat:
                         st.write(content)
                 else:
                     with st.chat_message("assistant"):
-                        st.write(content)
+                        # Parse and display AI response in a user-friendly format
+                        display_content = _format_ai_response(content)
+                        st.write(display_content)
     else:
         st.info("👋 안녕하세요! 만들고 싶은 워크플로우를 자유롭게 설명해주세요.")
         
@@ -205,7 +262,7 @@ if user_input:
             # Run async function
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            response_message, workflow_def, is_complete = loop.run_until_complete(
+            response_message, workflow_def, is_complete, rag_info = loop.run_until_complete(
                 st.session_state.agent.process_user_input(
                     user_input,
                     st.session_state.conversation_history
@@ -222,6 +279,12 @@ if user_input:
                 actual_workflow = workflow_def.get("workflow", workflow_def)
                 st.session_state.generated_workflow = actual_workflow
                 st.success("✅ 워크플로우가 생성되었습니다! 오른쪽에서 확인하고 저장하세요.")
+                
+                # Display RAG usage information
+                if rag_info and rag_info.get("rag_used"):
+                    st.info(f"🧠 RAG 지식 베이스 활용됨 (컨텍스트 길이: {rag_info.get('rag_context_length', 0)}자)")
+                else:
+                    st.info("💭 일반 AI 생성 (RAG 미사용)")
             
             st.rerun()
         

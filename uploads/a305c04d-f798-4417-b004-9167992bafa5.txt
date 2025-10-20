@@ -1,0 +1,8 @@
+기상청API: https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst?pageNo=1&numOfRows=1000&dataType=XML&base_date=20210628&base_time=0500&nx=55&ny=127&authKey=dsi6kOLASrGIupDiwPqxYA
+위치:
+키:
+조회 일자: 
+  - 날짜: 오늘 
+  - 시간: 8,11,14,17,20 중 현재시간과 가까운 시간
+저장위치: 현재경로 apihub_{현재일자+시간간}.csv
+

@@ -12,4 +12,18 @@ httpx==0.27.2
 aiohttp==3.10.10
 croniter==3.0.3
 pytz==2024.2
+# RAG System dependencies
+chromadb==0.4.24
+sentence-transformers==2.7.0
+tiktoken==0.7.0
+numpy==1.26.4
+scikit-learn==1.4.2
+
+# File processing dependencies
+PyPDF2==3.0.1
+python-docx==1.1.0
+openpyxl==3.1.2
+Pillow==10.2.0
+pytesseract==0.3.10
+python-magic-bin==0.4.14
 

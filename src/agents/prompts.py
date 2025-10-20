@@ -27,16 +27,20 @@ WORKFLOW_CREATION_SYSTEM_PROMPT = """You are an expert workflow designer AI assi
    import json
    import sys
    
-   # MUST parse --variables-file argument (NOT --variables!)
+   # MUST parse variables from command line arguments
    variables = {}
-   if '--variables-file' in sys.argv:
+   if '--variables' in sys.argv:
+       idx = sys.argv.index('--variables')
+       if idx + 1 < len(sys.argv):
+           variables = json.loads(sys.argv[idx + 1])
+   elif '--variables-file' in sys.argv:
        idx = sys.argv.index('--variables-file')
        if idx + 1 < len(sys.argv):
            with open(sys.argv[idx + 1], 'r', encoding='utf-8') as f:
                variables = json.load(f)
    ```
    
-   **IMPORTANT**: Use `--variables-file` (not `--variables`) to avoid Windows command line length limits!
+   **IMPORTANT**: Support BOTH `--variables` (JSON string) and `--variables-file` (file path) for flexibility!
    
    b) **Output Format (필수!)**
    - stdout에는 JSON만 출력 (텍스트 출력 금지!)
@@ -81,9 +85,13 @@ WORKFLOW_CREATION_SYSTEM_PROMPT = """You are an expert workflow designer AI assi
    import sys
    
    def main():
-       # 1. Parse variables from file (NOT from command line!)
+       # 1. Parse variables from command line (--variables first, fallback to --variables-file)
        variables = {}
-       if '--variables-file' in sys.argv:
+       if '--variables' in sys.argv:
+           idx = sys.argv.index('--variables')
+           if idx + 1 < len(sys.argv):
+               variables = json.loads(sys.argv[idx + 1])
+       elif '--variables-file' in sys.argv:
            idx = sys.argv.index('--variables-file')
            if idx + 1 < len(sys.argv):
                with open(sys.argv[idx + 1], 'r', encoding='utf-8') as f:
@@ -282,16 +290,20 @@ When fixing or creating PYTHON_SCRIPT code, you MUST follow these rules:
 import json
 import sys
 
-# MUST use --variables-file (NOT --variables!)
+# Parse variables from command line (--variables first, fallback to --variables-file)
 variables = {}
-if '--variables-file' in sys.argv:
+if '--variables' in sys.argv:
+    idx = sys.argv.index('--variables')
+    if idx + 1 < len(sys.argv):
+        variables = json.loads(sys.argv[idx + 1])
+elif '--variables-file' in sys.argv:
     idx = sys.argv.index('--variables-file')
     if idx + 1 < len(sys.argv):
         with open(sys.argv[idx + 1], 'r', encoding='utf-8') as f:
             variables = json.load(f)
 ```
 
-**IMPORTANT**: Always use `--variables-file` to avoid Windows command line length limits!
+**IMPORTANT**: Support BOTH `--variables` (JSON string) and `--variables-file` (file path) for maximum compatibility!
 
 ### b) Output Format (필수!)
 ```python
@@ -414,9 +426,9 @@ if __name__ == "__main__":
 - ✅ Update requirements if needed
 - ✅ **Extract variables BEFORE using in f-strings** (prevents quote nesting!)
 - ✅ Use consistent quote style (prefer double quotes for f-strings)
+- ✅ Support BOTH `--variables` and `--variables-file` for flexibility
 - ❌ NEVER provide partial code or patches
-- ❌ NEVER use --variables (use --variables-file instead!)
-- ❌ NEVER skip --variables-file parsing
+- ❌ NEVER skip variable parsing (support --variables first, fallback to --variables-file)
 - ❌ NEVER output simple data types
 - ❌ **NEVER nest quotes in f-strings** (e.g., f'text {dict['key']}')
 - ❌ NEVER use multi-line strings inside f-strings

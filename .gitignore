@@ -52,6 +52,10 @@ logs/
 workflow_scripts/*/
 !workflow_scripts/.gitkeep
 
+# RAG System
+data/chroma_db/
+*.chroma
+
 # OS
 .DS_Store
 Thumbs.db

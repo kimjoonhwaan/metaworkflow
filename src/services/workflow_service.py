@@ -394,12 +394,43 @@ class WorkflowService:
                     # Generate scaffold
                     code = self._generate_script_scaffold(step)
                 
-                # Write to file
-                script_path = os.path.join(workflow_dir, f"step_{step.order}_{step.name}.py")
+                # Write to file with safe filename
+                safe_name = self._make_safe_filename(step.name)
+                script_path = os.path.join(workflow_dir, f"step_{step.order}_{safe_name}.py")
+                
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(script_path), exist_ok=True)
+                
                 with open(script_path, 'w', encoding='utf-8') as f:
                     f.write(code)
                 
                 logger.info(f"Created script file: {script_path}")
+    
+    def _make_safe_filename(self, name: str) -> str:
+        """Make filename safe for filesystem"""
+        import re
+        
+        # Replace problematic characters
+        safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
+        
+        # Replace spaces with underscores
+        safe_name = safe_name.replace(' ', '_')
+        
+        # Remove multiple underscores
+        safe_name = re.sub(r'_+', '_', safe_name)
+        
+        # Remove leading/trailing underscores
+        safe_name = safe_name.strip('_')
+        
+        # Limit length
+        if len(safe_name) > 100:
+            safe_name = safe_name[:100]
+        
+        # Ensure it's not empty
+        if not safe_name:
+            safe_name = "step"
+        
+        return safe_name
     
     def _generate_script_scaffold(self, step: WorkflowStep) -> str:
         """Generate scaffold Python code for a step"""

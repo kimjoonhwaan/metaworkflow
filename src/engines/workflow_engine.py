@@ -121,6 +121,8 @@ class WorkflowEngine:
             # Debug: Log input variables
             logger.info(f"Step '{step.name}' input variables: {list(input_vars.keys())}")
             logger.debug(f"Step '{step.name}' full input: {input_vars}")
+            logger.info(f"Step '{step.name}' state variables: {list(state['variables'].keys())}")
+            logger.info(f"Step '{step.name}' step outputs: {list(state['step_outputs'].keys())}")
             
             # Execute the step
             start_time = datetime.utcnow()

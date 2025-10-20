@@ -61,6 +61,24 @@ class TriggerType(enum.Enum):
     WEBHOOK = "WEBHOOK"
 
 
+class KnowledgeBaseCategory(enum.Enum):
+    """Knowledge base category enumeration"""
+    WORKFLOW_PATTERNS = "WORKFLOW_PATTERNS"
+    ERROR_SOLUTIONS = "ERROR_SOLUTIONS"
+    CODE_TEMPLATES = "CODE_TEMPLATES"
+    INTEGRATION_EXAMPLES = "INTEGRATION_EXAMPLES"
+    BEST_PRACTICES = "BEST_PRACTICES"
+
+
+class DocumentContentType(enum.Enum):
+    """Document content type enumeration"""
+    TEXT = "TEXT"
+    CODE = "CODE"
+    EXAMPLE = "EXAMPLE"
+    ERROR_SOLUTION = "ERROR_SOLUTION"
+    TEMPLATE = "TEMPLATE"
+
+
 class Folder(Base):
     """Folder for organizing workflows"""
     __tablename__ = "folders"
@@ -262,4 +280,115 @@ class WorkflowVersion(Base):
     
     # Relationships
     workflow = relationship("Workflow", back_populates="versions")
+
+
+class KnowledgeBase(Base):
+    """Knowledge base for RAG system"""
+    __tablename__ = "knowledge_bases"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String(255), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    category = Column(Enum(KnowledgeBaseCategory), nullable=False)
+    
+    # Configuration
+    is_active = Column(Boolean, default=True)
+    embedding_model = Column(String(100), default="text-embedding-3-small")
+    chunk_size = Column(Integer, default=500)
+    chunk_overlap = Column(Integer, default=50)
+    
+    # Metadata
+    kb_metadata = Column("metadata", JSON, default=dict, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    documents = relationship("Document", back_populates="knowledge_base", cascade="all, delete-orphan")
+
+
+class Document(Base):
+    """Document in knowledge base"""
+    __tablename__ = "documents"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
+    title = Column(String(500), nullable=False)
+    content = Column(Text, nullable=False)
+    content_type = Column(Enum(DocumentContentType), nullable=False)
+    
+    # Vector storage reference
+    embedding_id = Column(String, nullable=True)  # ChromaDB collection ID
+    vector_count = Column(Integer, default=0)
+    
+    # Metadata
+    kb_metadata = Column("metadata", JSON, default=dict, nullable=True)
+    tags = Column(JSON, default=list, nullable=True)
+    
+    # Processing status
+    is_processed = Column(Boolean, default=False)
+    processing_error = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    knowledge_base = relationship("KnowledgeBase", back_populates="documents")
+    chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+
+
+class DocumentChunk(Base):
+    """Document chunk for vector storage"""
+    __tablename__ = "document_chunks"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    
+    # Vector storage reference
+    embedding_id = Column(String, nullable=True)  # ChromaDB document ID
+    embedding_vector = Column(JSON, nullable=True)  # 임시 저장용 (선택적)
+    
+    # Chunk metadata
+    start_char = Column(Integer, nullable=True)
+    end_char = Column(Integer, nullable=True)
+    token_count = Column(Integer, nullable=True)
+    
+    # Search metadata
+    search_score = Column(Float, nullable=True)  # 최근 검색 점수
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    document = relationship("Document", back_populates="chunks")
+
+
+class RAGQuery(Base):
+    """RAG query history for analytics"""
+    __tablename__ = "rag_queries"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    
+    # Query details
+    query_text = Column(Text, nullable=False)
+    query_category = Column(Enum(KnowledgeBaseCategory), nullable=True)
+    
+    # Results
+    results_count = Column(Integer, default=0)
+    top_score = Column(Float, nullable=True)
+    execution_time_ms = Column(Integer, nullable=True)
+    
+    # Context usage
+    used_in_generation = Column(Boolean, default=False)
+    generation_success = Column(Boolean, nullable=True)
+    
+    # Metadata
+    user_context = Column(JSON, default=dict, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
 

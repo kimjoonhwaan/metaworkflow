@@ -33,6 +33,8 @@
 - 🤖 **AI 기반 워크플로우 생성**: 자연어로 업무를 설명하면 LLM이 자동으로 워크플로우 생성
 - 💬 **대화형 구체화**: 필요한 정보를 AI가 질문하며 워크플로우를 점진적으로 개선
 - ✨ **자동 코드 검증**: AI가 생성한 Python 코드를 자동으로 검증하고 문제 발견 시 스스로 수정
+- 🧠 **RAG 기반 지식 활용**: 지식 베이스에서 관련 정보를 검색하여 더 정확한 워크플로우 생성
+- 📁 **다양한 파일 형식 지원**: PDF, Word, Excel, 이미지, 텍스트 파일 업로드 및 OCR 처리
 - 🔄 **LangGraph 기반 실행**: 각 스텝별 상태 관리 및 조건부 실행
 - 🐍 **Python 하이브리드**: 복잡한 로직은 Python 스크립트로 구현 가능
 - 🛡️ **견고한 에러 처리**: 실패 시 중단하고 재시도/수정 가능
@@ -47,6 +49,8 @@
 - **LLM**: OpenAI GPT-4
 - **Workflow Engine**: LangGraph
 - **Database**: SQLite + SQLAlchemy
+- **Vector Database**: ChromaDB
+- **Embeddings**: OpenAI text-embedding-3-small
 - **Tracing**: LangSmith
 
 ## 설치 방법
@@ -67,10 +71,13 @@ pip install -r requirements.txt
 cp .env.example .env
 # .env 파일에 OpenAI API 키 등 설정
 
-# 5. 데이터베이스 초기화
+# 5. 데이터베이스 초기화 (RAG 지식 베이스 포함)
 python -m src.database.init_db
 
-# 6. 애플리케이션 실행
+# 6. RAG 시스템 테스트 (선택사항)
+python test_rag_system.py
+
+# 7. 애플리케이션 실행
 streamlit run app.py
 ```
 
@@ -155,6 +162,22 @@ projWorkFlow4/
 │   │   │                                   #   - cleanup_old_executions() - 정리
 │   │   └── folder_service.py               # FolderService - 폴더 관리
 │   │                                       #   - create/update/delete/list folders
+│   │   ├── rag_service.py                  # RAGService - 지식 베이스 관리
+│   │   │                                   #   - create_knowledge_base() - KB 생성
+│   │   │                                   #   - add_document() - 문서 추가
+│   │   │                                   #   - hybrid_search() - 하이브리드 검색
+│   │   │                                   #   - get_relevant_context() - 컨텍스트 제공
+│   │   ├── file_parser.py                  # FileParser - 파일 파싱 서비스
+│   │   │                                   #   - parse_pdf() - PDF 텍스트 추출
+│   │   │                                   #   - parse_docx() - Word 문서 파싱
+│   │   │                                   #   - parse_xlsx() - Excel 파일 파싱
+│   │   │                                   #   - parse_image() - OCR 이미지 처리
+│   │   │                                   #   - parse_text() - 텍스트 파일 처리
+│   │   └── file_service.py                 # FileService - 파일 업로드 관리
+│   │                                       #   - upload_file() - 파일 업로드 및 처리
+│   │                                       #   - get_uploaded_files() - 업로드된 파일 목록
+│   │                                       #   - delete_uploaded_file() - 파일 삭제
+│   │                                       #   - search_files() - 파일 내용 검색
 │   │
 │   ├── triggers/                           # 자동 트리거 시스템
 │   │   ├── __init__.py
@@ -194,10 +217,14 @@ projWorkFlow4/
 │   │                                       #   - 상세 로그
 │   │                                       #   - 재시도/승인/취소
 │   │                                       #   - 통계
-│   └── 4_Triggers.py                       # 트리거 관리 페이지
-│                                           #   - 트리거 생성/수정/삭제
-│                                           #   - 스케줄/이벤트/웹훅 설정
-│                                           #   - 수동 실행
+│   ├── 4_Triggers.py                       # 트리거 관리 페이지
+│   │                                       #   - 트리거 생성/수정/삭제
+│   │                                       #   - 스케줄/이벤트/웹훅 설정
+│   │                                       #   - 수동 실행
+│   └── 5_Knowledge_Base.py                 # RAG 지식 베이스 관리 페이지
+│                                           #   - 문서 업로드/검색/관리
+│                                           #   - 지식 베이스 생성
+│                                           #   - 검색 결과 분석
 │
 ├── workflow_scripts/                       # 워크플로우별 Python 스크립트 (참고용)
 │   └── {workflow_id}/                      # 워크플로우 ID별 디렉토리
@@ -233,7 +260,12 @@ projWorkFlow4/
 ├── LANGGRAPH_WORKFLOW.md                   # LangGraph 동작 원리
 ├── AI_QUALITY_SYSTEM.md                    # AI 자동 품질 관리 시스템
 ├── PYTHON_EXECUTION_FLOW.md                # Python 코드 실행 메커니즘
-└── workflows.db                            # SQLite 데이터베이스
+├── RAG_SYSTEM_DESIGN.md                    # RAG 시스템 설계 문서
+├── RAG_USAGE_GUIDE.md                      # RAG 시스템 사용 가이드
+├── init_rag_data.py                        # RAG 샘플 데이터 초기화
+├── test_rag_system.py                      # RAG 시스템 테스트
+├── workflows.db                            # SQLite 데이터베이스
+└── data/chroma_db/                         # ChromaDB 벡터 저장소
 ```
 
 ## 📂 주요 파일 역할 상세
@@ -275,6 +307,9 @@ projWorkFlow4/
 | `workflow_service.py` | 워크플로우 CRUD | • 워크플로우 생성/수정/삭제<br>• **자동 코드 검증** (저장 시)<br>• 버전 관리 (자동 증가)<br>• Python 스크립트 파일 생성<br>• 필터링 및 검색 |
 | `execution_service.py` | 실행 기록 관리 | • 실행 목록 조회<br>• 통계 계산 (성공률, 평균 시간)<br>• 오래된 기록 정리 |
 | `folder_service.py` | 폴더 관리 | • 폴더 CRUD<br>• 계층 구조 지원 |
+| `rag_service.py` | RAG 시스템 관리 | • 지식 베이스 CRUD<br>• 문서 임베딩 및 저장<br>• 하이브리드 검색 (의미적 + 키워드)<br>• AI 에이전트 컨텍스트 제공 |
+| `file_parser.py` | 파일 파싱 | • PDF/DOCX/XLSX/이미지/텍스트 파싱<br>• OCR 이미지 처리<br>• 메타데이터 추출<br>• 인코딩 자동 감지 |
+| `file_service.py` | 파일 업로드 관리 | • 파일 업로드 및 처리<br>• 리포트 시스템 통합<br>• 파일 검색 기능<br>• 업로드 통계 관리 |
 
 ### ⏰ 트리거 시스템 (src/triggers/)
 
@@ -299,6 +334,7 @@ projWorkFlow4/
 | `2_Manage_Workflows.py` | 워크플로우 관리 | • 워크플로우 목록<br>• 필터링 (폴더/상태/태그)<br>• **AI 수정**<br>• 상태 변경<br>• 삭제 (확인 다이얼로그) |
 | `3_Executions.py` | 실행 기록 | • 실행 목록<br>• 상세 로그 (스텝별)<br>• **재시도/승인/취소**<br>• 통계 대시보드 |
 | `4_Triggers.py` | 트리거 관리 | • 트리거 생성<br>• 스케줄(Cron)/이벤트/웹훅<br>• 활성화/비활성화<br>• 수동 실행 |
+| `5_Knowledge_Base.py` | 지식 베이스 관리 | • **파일 업로드** (PDF/Word/Excel/이미지)<br>• 문서 검색 및 관리<br>• **하이브리드 검색**<br>• 업로드 통계 및 분석 |
 
 ### 📄 루트 파일
 
@@ -478,6 +514,30 @@ src/engines/workflow_engine.py
 4. **워크플로우 저장**: 검증 통과한 워크플로우를 저장
 5. **실행 및 모니터링**: 수동 실행 또는 트리거 설정으로 자동 실행
 6. **자동 수정**: 실행 실패 시 AI가 에러 로그를 분석하여 자동 수정
+
+## 🧠 RAG (Retrieval-Augmented Generation) 시스템
+
+AI가 더 정확하고 완성도 높은 워크플로우를 생성할 수 있도록 RAG 시스템을 도입했습니다:
+
+### 지식 베이스 카테고리
+- **워크플로우 패턴**: 일반적인 워크플로우 템플릿
+- **에러 해결책**: Python 오류 및 디버깅 가이드
+- **코드 템플릿**: 검증된 Python 스크립트 템플릿
+- **통합 예제**: 외부 서비스 연동 예제
+- **베스트 프랙티스**: 업계 표준 및 가이드라인
+
+### RAG 작동 원리
+```
+사용자 입력 → RAG 검색 → 관련 지식 검색 → AI 컨텍스트 제공 → 향상된 워크플로우 생성
+```
+
+### 주요 기능
+- **하이브리드 검색**: 의미적 검색 + 키워드 검색
+- **자동 컨텍스트 제공**: 워크플로우 생성/수정 시 자동으로 관련 지식 활용
+- **지식 베이스 관리**: UI를 통한 문서 업로드, 검색, 관리
+- **다양한 파일 형식 지원**: PDF, Word, Excel, 이미지, 텍스트 파일 업로드
+- **OCR 이미지 처리**: 이미지에서 텍스트 추출하여 검색 가능
+- **성능 모니터링**: 검색 통계 및 품질 지표 추적
 
 ## 🧠 AI 자동 품질 관리
 

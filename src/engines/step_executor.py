@@ -45,6 +45,9 @@ class StepExecutor:
             Step execution result with output data
         """
         try:
+            logger.info(f"execute_step called with variables: {list(variables.keys())}")
+            logger.debug(f"execute_step variables content: {variables}")
+            
             if step_type == StepType.LLM_CALL.value:
                 return await self._execute_llm_call(step_config, variables)
             elif step_type == StepType.API_CALL.value:
@@ -110,11 +113,43 @@ class StepExecutor:
         params = config.get("params", {})
         body = config.get("body", {})
         
-        # Format URL and body with variables
+        # Format URL, params, and body with variables
         try:
-            url = url.format(**variables)
+            # Format URL - handle both template strings and variable references
+            if url.startswith('{') and url.endswith('}'):
+                # Direct variable reference like {api_url}
+                var_name = url[1:-1]
+                if var_name in variables:
+                    url = variables[var_name]
+                else:
+                    logger.warning(f"Variable {var_name} not found for URL")
+            else:
+                # Template string with variables
+                url = url.format(**variables)
+            logger.debug(f"Formatted URL: {url}")
+            
+            # Format params with variables
+            if isinstance(params, dict):
+                formatted_params = {}
+                for key, value in params.items():
+                    if isinstance(value, str):
+                        try:
+                            formatted_params[key] = value.format(**variables)
+                        except KeyError as e:
+                            logger.warning(f"Variable {e} not found for param {key}, using original value")
+                            formatted_params[key] = value
+                    else:
+                        formatted_params[key] = value
+                params = formatted_params
+                logger.debug(f"Formatted params: {params}")
+            
+            # Format body with variables
             if isinstance(body, str):
-                body = body.format(**variables)
+                try:
+                    body = body.format(**variables)
+                except KeyError as e:
+                    logger.warning(f"Variable {e} not found in body, using original value")
+            
         except KeyError as e:
             logger.warning(f"Variable not found in API config: {e}")
         
@@ -157,6 +192,8 @@ class StepExecutor:
         Script should output final JSON to stdout, and logs/debug to stderr.
         """
         logger.info("Executing Python script")
+        logger.info(f"Received variables: {list(variables.keys())}")
+        logger.debug(f"Variables content: {variables}")
         
         if not code:
             raise ValueError("No Python code provided for PYTHON_SCRIPT step")
@@ -166,19 +203,70 @@ class StepExecutor:
             f.write(code)
             script_path = f.name
         
-        # Create temporary variables file (to avoid command line length issues)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
-            json.dump(variables, f)
-            variables_path = f.name
+        # Debug: Log the temporary script content
+        logger.info(f"Created temporary script: {script_path}")
+        logger.debug(f"Script content (first 500 chars): {code[:500]}")
         
+        # Debug: Read back the temporary file to verify content
         try:
-            # Execute script with variables file path
+            with open(script_path, 'r', encoding='utf-8') as f:
+                actual_content = f.read()
+            logger.info(f"Actual file content (first 500 chars): {actual_content[:500]}")
+            
+            # Fix the code if it only supports --variables-file
+            if '--variables-file' in actual_content and '--variables' not in actual_content.split('# Parse variables')[1].split('\\n')[0]:
+                logger.info("Fixing code to support --variables argument")
+                fixed_content = actual_content.replace(
+                    "# MUST parse --variables-file argument (NOT --variables!)",
+                    "# Parse variables from command line arguments"
+                ).replace(
+                    "if '--variables-file' in sys.argv:",
+                    "if '--variables' in sys.argv:\n    idx = sys.argv.index('--variables')\n    if idx + 1 < len(sys.argv):\n        variables = json.loads(sys.argv[idx + 1])\nelif '--variables-file' in sys.argv:"
+                )
+                
+                # Write the fixed code back to the file
+                with open(script_path, 'w', encoding='utf-8') as f:
+                    f.write(fixed_content)
+                logger.info("Code fixed to support --variables argument")
+                
+        except Exception as e:
+            logger.error(f"Failed to read temporary file: {e}")
+        
+        # Try direct command line arguments first, fallback to file if too long
+        variables_json = json.dumps(variables)
+        logger.debug(f"Variables being passed: {list(variables.keys())}")
+        logger.debug(f"Variables JSON length: {len(variables_json)}")
+        
+        # Check if command line would be too long (Windows limit is ~8191 chars)
+        estimated_length = len(f"{sys.executable} {script_path} --variables {variables_json}")
+        logger.debug(f"Estimated command line length: {estimated_length}")
+        
+        if estimated_length > 7000:  # Conservative limit
+            # Use temporary file for long command lines
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+                json.dump(variables, f)
+                variables_path = f.name
+            
             result = subprocess.run(
                 [sys.executable, script_path, "--variables-file", variables_path],
                 capture_output=True,
                 text=True,
                 timeout=settings.step_timeout_seconds,
             )
+        else:
+            # Use direct command line arguments
+            cmd = [sys.executable, script_path, "--variables", variables_json]
+            logger.info(f"Executing command: {cmd}")
+            logger.debug(f"Command details: script={script_path}, variables_json={variables_json}")
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=settings.step_timeout_seconds,
+            )
+        
+        try:
             
             # Log stderr (debug output)
             if result.stderr:
@@ -209,7 +297,8 @@ class StepExecutor:
             except:
                 pass
             try:
-                os.unlink(variables_path)
+                if estimated_length > 7000 and 'variables_path' in locals():
+                    os.unlink(variables_path)
             except:
                 pass
     

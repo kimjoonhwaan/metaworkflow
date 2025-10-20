@@ -8,6 +8,7 @@ from langchain.schema import HumanMessage, SystemMessage, AIMessage
 
 from src.agents.prompts import WORKFLOW_MODIFICATION_SYSTEM_PROMPT
 from src.utils import settings, get_logger, CodeValidator
+from src.services.rag_service import get_rag_service
 
 logger = get_logger("workflow_modifier")
 
@@ -21,13 +22,14 @@ class WorkflowModifier:
             api_key=settings.openai_api_key,
             temperature=1,
         )
+        self.rag_service = get_rag_service()
     
     async def modify_workflow(
         self,
         current_workflow: Dict[str, Any],
         modification_request: str,
         error_logs: Optional[str] = None,
-    ) -> Tuple[Dict[str, Any], List[str]]:
+    ) -> Tuple[Dict[str, Any], List[str], Dict[str, Any]]:
         """Modify workflow based on user request or error logs
         
         Args:
@@ -39,6 +41,21 @@ class WorkflowModifier:
             Tuple of (modified_workflow, list_of_changes)
         """
         logger.info(f"Modifying workflow: {modification_request[:100]}...")
+        
+        # Get relevant context from RAG
+        rag_context = ""
+        rag_used = False
+        if error_logs:
+            rag_context = await self.rag_service.get_relevant_context_for_error_fix(
+                error_logs, 
+                json.dumps(current_workflow, indent=2)
+            )
+        else:
+            rag_context = await self.rag_service.get_relevant_context_for_workflow_generation(
+                modification_request
+            )
+        
+        rag_used = bool(rag_context)
         
         # Build prompt
         prompt = f"""Current workflow:
@@ -64,8 +81,14 @@ Please analyze the error and fix the issue. Provide COMPLETE corrected code for 
 
 Generate the complete modified workflow with all changes applied. Explain what you changed in the "changes" list."""
         
+        # Add RAG context to system prompt
+        enhanced_system_prompt = WORKFLOW_MODIFICATION_SYSTEM_PROMPT
+        if rag_context:
+            enhanced_system_prompt += "\n\n" + rag_context
+            logger.info(f"Enhanced modification prompt with RAG context: {len(rag_context)} chars")
+        
         messages = [
-            SystemMessage(content=WORKFLOW_MODIFICATION_SYSTEM_PROMPT),
+            SystemMessage(content=enhanced_system_prompt),
             HumanMessage(content=prompt),
         ]
         
@@ -129,7 +152,7 @@ Generate the complete modified workflow with all changes applied. Explain what y
                                 changes.append("⚠️ 경고: 일부 코드에 검증 경고가 있습니다")
                 
                 logger.info(f"Workflow modified successfully with {len(changes)} changes")
-                return modified_workflow, changes
+                return modified_workflow, changes, {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0}
             else:
                 raise ValueError("Failed to parse modified workflow from response")
         

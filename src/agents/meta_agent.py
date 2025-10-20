@@ -11,6 +11,7 @@ from src.agents.prompts import (
     QUESTION_EXTRACTION_PROMPT,
 )
 from src.utils import settings, get_logger, CodeValidator
+from src.services.rag_service import get_rag_service
 
 logger = get_logger("meta_agent")
 
@@ -31,12 +32,13 @@ class MetaWorkflowAgent:
         
         self.conversation_history: List[Dict[str, str]] = []
         self.workflow_context: Dict[str, Any] = {}
+        self.rag_service = get_rag_service()
     
     async def process_user_input(
         self,
         user_input: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
-    ) -> Tuple[str, Optional[Dict[str, Any]], bool]:
+    ) -> Tuple[str, Optional[Dict[str, Any]], bool, Dict[str, Any]]:
         """Process user input and generate workflow or ask questions
         
         Args:
@@ -59,8 +61,18 @@ class MetaWorkflowAgent:
             "timestamp": datetime.utcnow().isoformat(),
         })
         
+        # Get relevant context from RAG
+        rag_context = await self.rag_service.get_relevant_context_for_workflow_generation(user_input)
+        rag_used = bool(rag_context)
+        
+        # Build enhanced system prompt with RAG context
+        enhanced_system_prompt = WORKFLOW_CREATION_SYSTEM_PROMPT
+        if rag_context:
+            enhanced_system_prompt += "\n\n" + rag_context
+            logger.info(f"Enhanced system prompt with RAG context: {len(rag_context)} chars")
+        
         # Build messages for LLM
-        messages = [SystemMessage(content=WORKFLOW_CREATION_SYSTEM_PROMPT)]
+        messages = [SystemMessage(content=enhanced_system_prompt)]
         
         for msg in self.conversation_history:
             if msg["role"] == "user":
@@ -126,7 +138,8 @@ class MetaWorkflowAgent:
                 return (
                     "워크플로우가 생성되었습니다. 검토 후 저장해주세요.",
                     workflow_def,
-                    True
+                    True,
+                    {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0}
                 )
             
             elif workflow_def and not is_ready:
@@ -139,7 +152,7 @@ class MetaWorkflowAgent:
                 })
                 
                 question_text = self._format_questions(questions)
-                return (question_text, None, False)
+                return (question_text, None, False, {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0})
             
             else:
                 # Regular conversation response
@@ -149,14 +162,15 @@ class MetaWorkflowAgent:
                     "timestamp": datetime.utcnow().isoformat(),
                 })
                 
-                return (response_text, None, False)
+                return (response_text, None, False, {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0})
         
         except Exception as e:
             logger.error(f"Error processing user input: {e}", exc_info=True)
             return (
                 f"죄송합니다. 처리 중 오류가 발생했습니다: {str(e)}",
                 None,
-                False
+                False,
+                {"rag_used": False, "rag_context_length": 0}
             )
     
     def _parse_workflow_response(self, response_text: str) -> Tuple[Optional[Dict[str, Any]], bool]:

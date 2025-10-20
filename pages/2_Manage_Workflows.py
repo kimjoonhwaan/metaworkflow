@@ -181,7 +181,7 @@ if workflows:
                                     loop = asyncio.new_event_loop()
                                     asyncio.set_event_loop(loop)
                                     
-                                    modified_workflow, changes = loop.run_until_complete(
+                                    modified_workflow, changes, rag_info = loop.run_until_complete(
                                         modifier.modify_workflow(
                                             current_workflow=workflow.definition,
                                             modification_request=modification_request,
@@ -201,6 +201,13 @@ if workflows:
                                     )
                                     
                                     st.success("✅ 워크플로우가 수정되었습니다!")
+                                    
+                                    # Display RAG usage information
+                                    if rag_info and rag_info.get("rag_used"):
+                                        st.info(f"🧠 RAG 지식 베이스 활용됨 (컨텍스트 길이: {rag_info.get('rag_context_length', 0)}자)")
+                                    else:
+                                        st.info("💭 일반 AI 수정 (RAG 미사용)")
+                                    
                                     st.write("**변경사항:**")
                                     for change in changes:
                                         st.write(f"- {change}")

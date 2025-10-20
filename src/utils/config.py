@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     
     # OpenAI Configuration
     openai_api_key: str
-    openai_model: str = "gpt-5-mini"
+    openai_model: str = "gpt-5"
     
     # LangSmith Configuration
     langchain_tracing_v2: bool = True
@@ -37,4 +37,8 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+def get_settings() -> Settings:
+    """Get global settings instance"""
+    return settings
 
