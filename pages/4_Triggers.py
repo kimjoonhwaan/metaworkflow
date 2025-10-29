@@ -112,7 +112,8 @@ with tab_create:
             
             condition = st.text_area(
                 "조건 (Python 표현식, 선택사항)",
-                placeholder="예: value > 100"
+                placeholder="예: value > 100",
+                key="event_condition_input"
             )
             
             config = {

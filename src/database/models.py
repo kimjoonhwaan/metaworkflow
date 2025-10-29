@@ -316,7 +316,7 @@ class Document(Base):
     knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     title = Column(String(500), nullable=False)
     content = Column(Text, nullable=False)
-    content_type = Column(Enum(DocumentContentType), nullable=False)
+    content_type = Column(Enum(DocumentContentType, native_enum=False), nullable=False)
     
     # Vector storage reference
     embedding_id = Column(String, nullable=True)  # ChromaDB collection ID

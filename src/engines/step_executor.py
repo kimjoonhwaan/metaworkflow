@@ -251,6 +251,8 @@ class StepExecutor:
                 [sys.executable, script_path, "--variables-file", variables_path],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=settings.step_timeout_seconds,
             )
         else:
@@ -263,6 +265,8 @@ class StepExecutor:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=settings.step_timeout_seconds,
             )
         

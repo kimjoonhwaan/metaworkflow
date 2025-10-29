@@ -151,7 +151,7 @@ elif tab == "➕ Add Document":
             
             if selected_kb == "Create New Knowledge Base":
                 new_kb_name = st.text_input("New Knowledge Base Name")
-                new_kb_description = st.text_area("Description")
+                new_kb_description = st.text_area("Description", key="new_kb_description")
                 new_kb_category = st.selectbox(
                     "Category",
                     options=[cat.value for cat in KnowledgeBaseCategory],
@@ -175,7 +175,8 @@ elif tab == "➕ Add Document":
         doc_content = st.text_area(
             "Document Content",
             height=300,
-            placeholder="Enter your document content here..."
+            placeholder="Enter your document content here...",
+            key="doc_content_input"
         )
         
         # Metadata
@@ -183,7 +184,8 @@ elif tab == "➕ Add Document":
             metadata_input = st.text_area(
                 "Metadata (JSON format)",
                 value="{}",
-                help="Enter additional metadata as JSON"
+                help="Enter additional metadata as JSON",
+                key="metadata_json_input"
             )
         
         submitted = st.form_submit_button("📤 Add Document")
@@ -392,7 +394,7 @@ elif tab == "📁 Upload Files":
                                             content_preview = parse_result['content'][:500]
                                             if len(parse_result['content']) > 500:
                                                 content_preview += "..."
-                                            st.text_area("Content Preview", content_preview, height=200, disabled=True)
+                                            st.text_area("Content Preview", content_preview, height=200, disabled=True, key=f"file_preview_{file_info['document_id']}")
                                         else:
                                             st.error(f"Failed to parse content: {parse_result['error']}")
                                     else:
@@ -483,7 +485,7 @@ elif tab == "🔍 Search Documents":
                                 content_preview = result['content'][:500]
                                 if len(result['content']) > 500:
                                     content_preview += "..."
-                                st.text_area("Content Preview", content_preview, height=100, disabled=True)
+                                st.text_area("Content Preview", content_preview, height=100, disabled=True, key=f"kb_search_preview_{i}")
                             
                             with col2:
                                 st.metric("Similarity Score", f"{result['final_score']:.3f}")
@@ -513,7 +515,7 @@ elif tab == "🔍 Search Documents":
                                     content = search_result.get('content', '')
                                     if content:
                                         st.write("**Content:**")
-                                        st.text_area("", content, height=150, disabled=True)
+                                        st.text_area("", content, height=150, disabled=True, key=f"file_search_content_{i}")
                                 
                                 with col2:
                                     st.metric("Final Score", f"{search_result['final_score']:.3f}")

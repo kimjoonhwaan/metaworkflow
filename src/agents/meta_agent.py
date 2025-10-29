@@ -25,6 +25,8 @@ class MetaWorkflowAgent:
                 model=settings.openai_model,
                 api_key=settings.openai_api_key,
                 temperature=1,
+                #reasoning_effort="minimal"
+                reasoning_effort="low"            
             )
         except Exception as e:
             logger.error(f"Failed to initialize LLM: {e}")

@@ -54,7 +54,7 @@ with st.sidebar:
     # Folder management
     with st.expander("📁 폴더 관리"):
         new_folder_name = st.text_input("새 폴더 이름")
-        new_folder_desc = st.text_area("설명")
+        new_folder_desc = st.text_area("설명", key="folder_description_new")
         
         if st.button("폴더 생성"):
             if new_folder_name:
