@@ -63,8 +63,11 @@ class MetaWorkflowAgent:
             "timestamp": datetime.utcnow().isoformat(),
         })
         
-        # Get relevant context from RAG
-        rag_context = await self.rag_service.get_relevant_context_for_workflow_generation(user_input)
+        # Get relevant context from RAG (with smart domain detection)
+        # 🆕 원본 쿼리만 도메인 감지 후 검색 (부분쿼리 제거)
+        rag_context, rag_metadata = await self.rag_service.get_relevant_context_for_workflow_with_domain_detection(
+            user_input
+        )
         rag_used = bool(rag_context)
         
         # Build enhanced system prompt with RAG context
@@ -72,6 +75,9 @@ class MetaWorkflowAgent:
         if rag_context:
             enhanced_system_prompt += "\n\n" + rag_context
             logger.info(f"Enhanced system prompt with RAG context: {len(rag_context)} chars")
+            logger.info(f"Query decomposition metadata: subqueries={rag_metadata.get('num_subqueries')}, "
+                       f"total_collected={rag_metadata.get('total_documents_collected')}, "
+                       f"unique={rag_metadata.get('unique_documents')}")
         
         # Build messages for LLM
         messages = [SystemMessage(content=enhanced_system_prompt)]
@@ -141,7 +147,15 @@ class MetaWorkflowAgent:
                     "워크플로우가 생성되었습니다. 검토 후 저장해주세요.",
                     workflow_def,
                     True,
-                    {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0}
+                    {
+                        "rag_used": rag_used,
+                        "rag_context_length": len(rag_context) if rag_context else 0,
+                        "query_decomposed": rag_metadata.get("query_decomposed", False),
+                        "num_subqueries": rag_metadata.get("num_subqueries", 0),
+                        "total_documents_collected": rag_metadata.get("total_documents_collected", 0),
+                        "unique_documents": rag_metadata.get("unique_documents", 0),
+                        "subqueries_detail": rag_metadata.get("subqueries_detail", [])
+                    }
                 )
             
             elif workflow_def and not is_ready:
@@ -154,7 +168,14 @@ class MetaWorkflowAgent:
                 })
                 
                 question_text = self._format_questions(questions)
-                return (question_text, None, False, {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0})
+                return (question_text, None, False, {
+                    "rag_used": rag_used,
+                    "rag_context_length": len(rag_context) if rag_context else 0,
+                    "query_decomposed": rag_metadata.get("query_decomposed", False),
+                    "num_subqueries": rag_metadata.get("num_subqueries", 0),
+                    "total_documents_collected": rag_metadata.get("total_documents_collected", 0),
+                    "unique_documents": rag_metadata.get("unique_documents", 0)
+                })
             
             else:
                 # Regular conversation response
@@ -164,7 +185,14 @@ class MetaWorkflowAgent:
                     "timestamp": datetime.utcnow().isoformat(),
                 })
                 
-                return (response_text, None, False, {"rag_used": rag_used, "rag_context_length": len(rag_context) if rag_context else 0})
+                return (response_text, None, False, {
+                    "rag_used": rag_used,
+                    "rag_context_length": len(rag_context) if rag_context else 0,
+                    "query_decomposed": rag_metadata.get("query_decomposed", False),
+                    "num_subqueries": rag_metadata.get("num_subqueries", 0),
+                    "total_documents_collected": rag_metadata.get("total_documents_collected", 0),
+                    "unique_documents": rag_metadata.get("unique_documents", 0)
+                })
         
         except Exception as e:
             logger.error(f"Error processing user input: {e}", exc_info=True)
@@ -172,7 +200,14 @@ class MetaWorkflowAgent:
                 f"죄송합니다. 처리 중 오류가 발생했습니다: {str(e)}",
                 None,
                 False,
-                {"rag_used": False, "rag_context_length": 0}
+                {
+                    "rag_used": False,
+                    "rag_context_length": 0,
+                    "query_decomposed": False,
+                    "num_subqueries": 0,
+                    "total_documents_collected": 0,
+                    "unique_documents": 0
+                }
             )
     
     def _parse_workflow_response(self, response_text: str) -> Tuple[Optional[Dict[str, Any]], bool]:

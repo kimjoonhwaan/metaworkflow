@@ -282,6 +282,37 @@ class WorkflowVersion(Base):
     workflow = relationship("Workflow", back_populates="versions")
 
 
+class Domain(Base):
+    """Domain for organizing documents in separate ChromaDB collections"""
+    __tablename__ = "domains"
+    
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String(100), unique=True, nullable=False)  # e.g., "네이버", "기상청", "common"
+    display_name = Column(String(200), nullable=True)  # e.g., "네이버 서비스"
+    description = Column(Text, nullable=True)
+    
+    # Keywords for automatic domain detection
+    keywords = Column(JSON, default=list, nullable=True)  # ["네이버", "naver", "NAVER"]
+    
+    # ChromaDB collection name
+    collection_name = Column(String(100), unique=True, nullable=False)  # e.g., "collection_네이버"
+    
+    # Special flags
+    is_common = Column(Boolean, default=False, nullable=False)  # True for "common" domain
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Statistics
+    document_count = Column(Integer, default=0, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    documents = relationship("Document", back_populates="domain_obj")
+
+
 class KnowledgeBase(Base):
     """Knowledge base for RAG system"""
     __tablename__ = "knowledge_bases"
@@ -309,18 +340,26 @@ class KnowledgeBase(Base):
 
 
 class Document(Base):
-    """Document in knowledge base"""
+    """Document in knowledge base - now stores full content with separate metadata for vector search"""
     __tablename__ = "documents"
 
     id = Column(String, primary_key=True, default=generate_uuid)
     knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     title = Column(String(500), nullable=False)
+    
+    # ✨ NEW: Full content stored here (not chunked)
     content = Column(Text, nullable=False)
     content_type = Column(Enum(DocumentContentType, native_enum=False), nullable=False)
     
+    # ✨ NEW: Domain field for collection separation
+    domain = Column(String(50), nullable=False, default="common")
+    # Valid domains: "네이버", "기상청", "카카오", "구글", "common" (user-defined)
+    
+    # ✨ NEW: Domain FK (nullable for backward compatibility)
+    domain_id = Column(String, ForeignKey("domains.id"), nullable=True)
+    
     # Vector storage reference
-    embedding_id = Column(String, nullable=True)  # ChromaDB collection ID
-    vector_count = Column(Integer, default=0)
+    embedding_id = Column(String, nullable=True)  # ChromaDB document ID
     
     # Metadata
     kb_metadata = Column("metadata", JSON, default=dict, nullable=True)
@@ -336,7 +375,9 @@ class Document(Base):
     
     # Relationships
     knowledge_base = relationship("KnowledgeBase", back_populates="documents")
+    domain_obj = relationship("Domain", back_populates="documents")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+    doc_metadata = relationship("DocumentMetadata", back_populates="document", cascade="all, delete-orphan", uselist=False)
 
 
 class DocumentChunk(Base):
@@ -365,6 +406,47 @@ class DocumentChunk(Base):
     
     # Relationships
     document = relationship("Document", back_populates="chunks")
+
+
+class DocumentMetadata(Base):
+    """
+    Denormalized metadata for efficient vector search
+    Stores searchable metadata separately for better vector embedding
+    """
+    __tablename__ = "document_metadata"
+    
+    id = Column(String, primary_key=True, default=generate_uuid)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False, unique=True)
+    
+    # ✨ NEW: Domain field (should match document.domain)
+    domain = Column(String(50), nullable=False, default="common")
+    
+    # ✨ Searchable text (this is what will be embedded)
+    searchable_text = Column(Text, nullable=False)  # Combined: title + keywords + technologies + description
+    
+    # 📌 Metadata fields
+    keywords = Column(JSON, default=list, nullable=True)  # ["keyword1", "keyword2", ...]
+    technologies = Column(JSON, default=list, nullable=True)  # ["python", "requests", ...]
+    description = Column(Text, nullable=True)  # Description/summary
+    summary = Column(Text, nullable=True)  # Brief summary
+    tags = Column(JSON, default=list, nullable=True)  # ["tag1", "tag2"]
+    
+    # 📌 Workflow/Code specific
+    workflow_pattern = Column(JSON, default=list, nullable=True)  # ["API_CALL", "PYTHON_SCRIPT", ...]
+    contains_code = Column(Boolean, default=False)  # Contains code samples
+    contains_api = Column(Boolean, default=False)  # Contains API specs
+    contains_template = Column(Boolean, default=False)  # Contains templates
+    doc_type = Column(String(50), nullable=True)  # "code", "api", "template", "guide", "workflow"
+    
+    # Vector embedding reference
+    embedding_id = Column(String, nullable=True)  # ChromaDB ID for this metadata
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    document = relationship("Document", foreign_keys=[document_id])
 
 
 class RAGQuery(Base):

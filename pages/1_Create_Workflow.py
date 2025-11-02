@@ -282,7 +282,21 @@ if user_input:
                 
                 # Display RAG usage information
                 if rag_info and rag_info.get("rag_used"):
-                    st.info(f"🧠 RAG 지식 베이스 활용됨 (컨텍스트 길이: {rag_info.get('rag_context_length', 0)}자)")
+                    col_rag1, col_rag2 = st.columns(2)
+                    
+                    with col_rag1:
+                        st.info(f"🧠 RAG 지식 베이스 활용됨\n\n컨텍스트: {rag_info.get('rag_context_length', 0):,}자")
+                    
+                    with col_rag2:
+                        if rag_info.get("query_decomposed"):
+                            decomp_info = (
+                                f"🔍 **쿼리 분해**: {rag_info.get('num_subqueries', 0)}개 서브쿼리\n\n"
+                                f"📚 **수집**: {rag_info.get('total_documents_collected', 0)}개\n\n"
+                                f"✨ **중복제거**: {rag_info.get('unique_documents', 0)}개"
+                            )
+                            st.info(decomp_info)
+                        else:
+                            st.info("🔍 쿼리 분해: 미사용")
                 else:
                     st.info("💭 일반 AI 생성 (RAG 미사용)")
             

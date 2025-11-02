@@ -36,7 +36,8 @@ class FileService:
         knowledge_base_id: str,
         title: Optional[str] = None,
         description: Optional[str] = None,
-        tags: List[str] = None
+        tags: List[str] = None,
+        domain: str = "common"  # ✨ NEW: Domain parameter
     ) -> Dict[str, Any]:
         """Upload and process a file, adding it to the knowledge base"""
         try:
@@ -70,22 +71,52 @@ class FileService:
             # Create document title
             document_title = title or f"{Path(filename).stem} ({parse_result['file_info']['mime_type']})"
             
-            # Add document to knowledge base
-            doc_id = await self.rag_service.add_document(
-                knowledge_base_id=knowledge_base_id,
-                title=document_title,
-                content=parse_result['content'],
-                content_type=content_type,
-                metadata={
-                    'original_filename': filename,
-                    'file_id': file_id,
-                    'file_path': str(file_path),
-                    'file_info': parse_result['file_info'],
-                    'parsed_metadata': parse_result.get('metadata', {}),
-                    'description': description
-                },
-                tags=tags or []
-            )
+            # Add to database session and create metadata
+            with get_session() as session:
+                document = Document(
+                    knowledge_base_id=knowledge_base_id,
+                    title=document_title,
+                    content=parse_result['content'],
+                    content_type=content_type,
+                    domain=domain,  # ✨ NEW: Set domain
+                    tags=tags or [],
+                    metadata={
+                        'original_filename': filename,
+                        'file_id': file_id,
+                        'file_path': str(file_path),
+                        'file_info': parse_result['file_info'],
+                        'parsed_metadata': parse_result.get('metadata', {}),
+                        'description': description
+                    }
+                )
+                
+                session.add(document)
+                session.commit()
+                doc_id = document.id
+                
+                # Create DocumentMetadata object
+                doc_metadata = DocumentMetadata(
+                    document_id=doc_id,
+                    searchable_text=f"{document_title}\n{parse_result['content'][:500]}",
+                    keywords=tags or [],
+                    description=description or document_title,
+                    summary=parse_result['content'][:200] if parse_result['content'] else "",
+                    doc_type=content_type.value,
+                    domain=domain  # ✨ NEW: Set domain
+                )
+                
+                session.add(doc_metadata)
+                session.commit()
+            
+            # Retrieve objects from database after session closes
+            with get_session() as session:
+                document = session.query(Document).filter(Document.id == doc_id).first()
+                doc_metadata = session.query(DocumentMetadata).filter(
+                    DocumentMetadata.document_id == doc_id
+                ).first()
+                
+                # Add to RAG
+                await self.rag_service.add_document(document, doc_metadata)
             
             logger.info(f"File uploaded successfully: {filename} -> {doc_id}")
             
@@ -232,17 +263,25 @@ class FileService:
     async def create_file_knowledge_base(self, name: str, description: str = None) -> str:
         """Create a knowledge base specifically for uploaded files"""
         try:
-            kb_id = await self.rag_service.create_knowledge_base(
-                name=name,
-                description=description or f"Knowledge base for uploaded files: {name}",
-                category=KnowledgeBaseCategory.INTEGRATION_EXAMPLES
-            )
+            from ..database.models import KnowledgeBase
+            from ..database.session import get_session
             
-            logger.info(f"Created file knowledge base: {kb_id}")
+            # ✨ Create knowledge base directly in database
+            with get_session() as session:
+                kb = KnowledgeBase(
+                    name=name,
+                    description=description or f"Knowledge base for uploaded files: {name}",
+                    category=KnowledgeBaseCategory.INTEGRATION_EXAMPLES
+                )
+                session.add(kb)
+                session.commit()
+                kb_id = kb.id
+            
+            logger.info(f"✅ Created file knowledge base: {kb_id} ({name})")
             return kb_id
             
         except Exception as e:
-            logger.error(f"Failed to create file knowledge base: {e}")
+            logger.error(f"❌ Failed to create file knowledge base: {e}")
             raise
     
     async def search_files(
