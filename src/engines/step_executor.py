@@ -70,18 +70,37 @@ class StepExecutor:
     
     async def _execute_llm_call(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
         """Execute LLM call step"""
-        logger.info(f"Executing LLM call: {config.get('prompt', '')[:100]}...")
+        logger.info(f"Executing LLM call...")
         
-        # Get prompt template and format with variables
-        prompt_template = config.get("prompt", "")
+        # Get prompt template
+        prompt_template = config.get("user_prompt", "") or config.get("prompt", "")
         system_prompt = config.get("system_prompt", "You are a helpful assistant.")
         
+        # ✅ 디버깅: 포맷팅 전 로깅
+        logger.info(f"[LLM_CALL] Prompt template: '{prompt_template}'")
+        logger.info(f"[LLM_CALL] Available variables: {list(variables.keys())}")
+        
         # Format prompts with variables
+        formatted_prompt = prompt_template
         try:
-            formatted_prompt = prompt_template.format(**variables)
+            # ✅ 수정: 공백 모두 제거하고 포맷팅
+            # "{ user_prompt }" → "{user_prompt}" 변환
+            import re
+            cleaned_template = re.sub(r'\{\s+(\w+)\s+\}', r'{\1}', prompt_template)
+            
+            logger.debug(f"[LLM_CALL] Cleaned template: '{cleaned_template}'")
+            
+            formatted_prompt = cleaned_template.format(**variables)
+            logger.info(f"[LLM_CALL] Successfully formatted prompt: '{formatted_prompt[:100]}...'")
         except KeyError as e:
+            logger.error(f"[LLM_CALL] Variable '{e}' not found in: {list(variables.keys())}")
+            logger.error(f"[LLM_CALL] Template: '{prompt_template}'")
             formatted_prompt = prompt_template
-            logger.warning(f"Variable not found in prompt: {e}")
+        except Exception as e:
+            logger.error(f"[LLM_CALL] Format error: {e}", exc_info=True)
+            formatted_prompt = prompt_template
+        
+        logger.info(f"[LLM_CALL] Final prompt: '{formatted_prompt[:100]}...'")
         
         # Create messages
         messages = [
@@ -99,85 +118,6 @@ class StepExecutor:
             "success": True,
             "output": result,
             "raw_response": result,
-        }
-    
-    async def _execute_api_call(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute API call step"""
-        import httpx
-        
-        logger.info(f"Executing API call: {config.get('method', 'GET')} {config.get('url', '')}")
-        
-        method = config.get("method", "GET").upper()
-        url = config.get("url", "")
-        headers = config.get("headers", {})
-        params = config.get("params", {})
-        body = config.get("body", {})
-        
-        # Format URL, params, and body with variables
-        try:
-            # Format URL - handle both template strings and variable references
-            if url.startswith('{') and url.endswith('}'):
-                # Direct variable reference like {api_url}
-                var_name = url[1:-1]
-                if var_name in variables:
-                    url = variables[var_name]
-                else:
-                    logger.warning(f"Variable {var_name} not found for URL")
-            else:
-                # Template string with variables
-                url = url.format(**variables)
-            logger.debug(f"Formatted URL: {url}")
-            
-            # Format params with variables
-            if isinstance(params, dict):
-                formatted_params = {}
-                for key, value in params.items():
-                    if isinstance(value, str):
-                        try:
-                            formatted_params[key] = value.format(**variables)
-                        except KeyError as e:
-                            logger.warning(f"Variable {e} not found for param {key}, using original value")
-                            formatted_params[key] = value
-                    else:
-                        formatted_params[key] = value
-                params = formatted_params
-                logger.debug(f"Formatted params: {params}")
-            
-            # Format body with variables
-            if isinstance(body, str):
-                try:
-                    body = body.format(**variables)
-                except KeyError as e:
-                    logger.warning(f"Variable {e} not found in body, using original value")
-            
-        except KeyError as e:
-            logger.warning(f"Variable not found in API config: {e}")
-        
-        async with httpx.AsyncClient() as client:
-            if method == "GET":
-                response = await client.get(url, headers=headers, params=params)
-            elif method == "POST":
-                response = await client.post(url, headers=headers, json=body)
-            elif method == "PUT":
-                response = await client.put(url, headers=headers, json=body)
-            elif method == "DELETE":
-                response = await client.delete(url, headers=headers)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-        
-        response.raise_for_status()
-        
-        try:
-            result_data = response.json()
-        except:
-            result_data = response.text
-        
-        logger.info(f"API call successful: {response.status_code}")
-        
-        return {
-            "success": True,
-            "output": result_data,
-            "status_code": response.status_code,
         }
     
     async def _execute_python_script(
