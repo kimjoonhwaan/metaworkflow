@@ -12,6 +12,7 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from src.database.models import StepType
 from src.utils import settings, get_logger
+from src.mcp.email_server import email_mcp
 
 logger = get_logger("step_executor")
 
@@ -25,6 +26,7 @@ class StepExecutor:
             api_key=settings.openai_api_key,
             temperature=1
         )
+        self.mcp_email = email_mcp
     
     async def execute_step(
         self,
@@ -279,33 +281,98 @@ class StepExecutor:
         }
     
     async def _execute_notification(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute notification step"""
+        """Execute notification step with MCP support"""
         logger.info(f"Executing notification: {config.get('type', 'log')}")
         
         notification_type = config.get("type", "log")
-        message = config.get("message", "")
         
-        # Format message with variables
         try:
-            formatted_message = message.format(**variables)
-        except KeyError as e:
-            formatted_message = message
-            logger.warning(f"Variable not found in message: {e}")
+            if notification_type == "email":
+                # ✅ MCP Email notification
+                logger.info("[NOTIFICATION] Sending email via MCP...")
+                
+                # Get email parameters
+                to = config.get("to", "")
+                subject = config.get("subject", "")
+                body = config.get("body", "")
+                cc = config.get("cc", None)
+                bcc = config.get("bcc", None)
+                html = config.get("html", False)
+                
+                # Format parameters with variables
+                try:
+                    to = to.format(**variables) if to else ""
+                    subject = subject.format(**variables) if subject else ""
+                    body = body.format(**variables) if body else ""
+                    if cc:
+                        cc = cc.format(**variables)
+                    if bcc:
+                        bcc = bcc.format(**variables)
+                except KeyError as e:
+                    logger.warning(f"Variable not found in email template: {e}")
+                
+                logger.info(f"[NOTIFICATION] Email config: to={to}, subject={subject[:50]}...")
+                
+                # Send email via MCP
+                result = await self.mcp_email.send_email(
+                    to=to,
+                    subject=subject,
+                    body=body,
+                    cc=cc,
+                    bcc=bcc,
+                    html=html
+                )
+                
+                logger.info(f"[NOTIFICATION] Email result: {result}")
+                
+                return {
+                    "success": result.get("status") == "success",
+                    "output": result,
+                    "notification_sent": result.get("status") == "success",
+                }
+            
+            elif notification_type == "log":
+                # Console log notification
+                message = config.get("message", "")
+                try:
+                    formatted_message = message.format(**variables)
+                except KeyError as e:
+                    formatted_message = message
+                    logger.warning(f"Variable not found in message: {e}")
+                
+                logger.info(f"[NOTIFICATION] Log: {formatted_message}")
+                
+                return {
+                    "success": True,
+                    "output": formatted_message,
+                    "notification_sent": True,
+                }
+            
+            elif notification_type == "slack":
+                # TODO: Implement Slack MCP notification
+                logger.warning("[NOTIFICATION] Slack notifications not yet implemented")
+                return {
+                    "success": False,
+                    "output": "Slack notifications not yet implemented",
+                    "notification_sent": False,
+                }
+            
+            else:
+                logger.warning(f"[NOTIFICATION] Unknown notification type: {notification_type}")
+                return {
+                    "success": False,
+                    "output": f"Unknown notification type: {notification_type}",
+                    "notification_sent": False,
+                }
         
-        if notification_type == "log":
-            logger.info(f"Notification: {formatted_message}")
-        elif notification_type == "email":
-            # TODO: Implement email notification
-            logger.info(f"Email notification (not implemented): {formatted_message}")
-        elif notification_type == "slack":
-            # TODO: Implement Slack notification
-            logger.info(f"Slack notification (not implemented): {formatted_message}")
-        
-        return {
-            "success": True,
-            "output": formatted_message,
-            "notification_sent": True,
-        }
+        except Exception as e:
+            logger.error(f"[NOTIFICATION] Error sending notification: {e}", exc_info=True)
+            return {
+                "success": False,
+                "output": f"Error sending notification: {str(e)}",
+                "notification_sent": False,
+                "error": str(e)
+            }
     
     async def _execute_data_transform(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
         """Execute data transformation step"""

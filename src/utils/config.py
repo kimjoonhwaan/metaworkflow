@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     max_retry_count: int = 3
     step_timeout_seconds: int = 300
     
+    # SMTP Configuration (for MCP Email Notifications)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    from_email: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

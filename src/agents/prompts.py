@@ -232,7 +232,10 @@ When you have enough information, respond with a JSON workflow definition:
 - **PYTHON_SCRIPT**: Execute Python code (provide complete code in "code" field)
 - **CONDITION**: Evaluate condition (config: {condition})
 - **APPROVAL**: Wait for user approval (config: {message})
-- **NOTIFICATION**: Send notification (config: {type, message})
+- **NOTIFICATION**: Send notification via MCP
+  * Email (type: "email"): config: {type: "email", to, subject, body, cc, bcc, html}
+  * Log (type: "log"): config: {type: "log", message}
+  * Slack (type: "slack"): config: {type: "slack", message} (coming soon)
 - **DATA_TRANSFORM**: Transform data (config: {transform_type, expression})
 
 ## CRITICAL RULES (반드시 준수!):
