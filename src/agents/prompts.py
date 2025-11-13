@@ -225,10 +225,53 @@ When you have enough information, respond with a JSON workflow definition:
 }
 ```
 
+## ⭐ API 호출에 대한 중요 지침
+
+**API 호출은 반드시 API_CALL 스텝 + MCP를 사용하세요!**
+
+❌ 잘못된 방법:
+- PYTHON_SCRIPT에서 requests 라이브러리로 직접 API 호출
+- API_CALL 스텝 없이 Python에서 처리
+
+✅ 올바른 방법:
+- API_CALL 스텝 타입 사용
+- MCP가 자동으로 처리 (인증, 재시도, 캐싱, 헤더 등)
+- 변수 포맷팅도 자동
+
+**장점:**
+1. 🔐 보안: 인증 자동 처리
+2. 🔄 재시도: 자동 재시도 (Exponential Backoff)
+3. ⚡ 캐싱: 응답 자동 캐시
+4. 📋 로깅: 상세 로깅
+5. 🌐 헤더: 브라우저 헤더 자동 추가 (WAF 우회)
+6. 🧬 변수: 자동 포맷팅
+
+---
+
 ## Step Types:
 - **LLM_CALL**: Call LLM with a prompt (config: {prompt, system_prompt})
-- **API_CALL**: HTTP API call (config: {method, url, headers, body, params})
-                URL 형식 명확하게 기재: {variable_name} (단일 중괄호!)
+- **API_CALL**: REST API HTTP call
+  * config MUST have: 
+    {
+      "method": "GET|POST|PUT|DELETE|PATCH",
+      "url": "https://api.example.com/endpoint",  ← ⭐ Base URL ONLY (no query string!)
+      "query_params": {                           ← ⭐ IMPORTANT: "query_params" NOT "params"!
+        "param1": "{variable_name}",              ← Use single braces {variable_name}
+        "param2": "literal_value",
+        "limit": 10
+      },
+      "headers": {"Authorization": "Bearer {token}"},
+      "body": null or {...}
+    }
+  * ⭐ CRITICAL Rules:
+    1. URL must be base path ONLY - no query string in URL!
+    2. ALL query parameters must go in "query_params" object
+    3. Use "query_params" NOT "params" - this is REQUIRED!
+    4. Variables use single braces: {variable_name}
+    5. input_mapping: maps workflow variables to step variables
+    6. output_mapping: maps response to workflow variables
+  * ❌ WRONG: "url": "https://api.example.com/search?q={query}&limit=10", "params": {}
+  * ✅ RIGHT: "url": "https://api.example.com/search", "query_params": {"q": "{query}", "limit": 10}
 - **PYTHON_SCRIPT**: Execute Python code (provide complete code in "code" field)
 - **CONDITION**: Evaluate condition (config: {condition})
 - **APPROVAL**: Wait for user approval (config: {message})
@@ -265,7 +308,15 @@ When you have enough information, respond with a JSON workflow definition:
 - Add retry_config for critical steps
 - Add APPROVAL steps for workflows requiring human review
 
-### 5. Common Mistakes to AVOID:
+### 5. API 호출 우선순위
+- ✅ API_CALL 스텝 사용 (MCP 자동 처리)
+- ✅ query_params에 모든 파라미터 정의
+- ✅ 베이스 URL만 작성 (쿼리스트링 X)
+- ❌ PYTHON_SCRIPT에서 requests/urllib 직접 사용 금지
+- ❌ API_CALL 없이 Python에서 API 호출 금지
+- **이유**: MCP가 인증, 재시도, 캐싱, WAF 우회, 헤더 등을 자동으로 처리
+
+### 6. Common Mistakes to AVOID:
 ❌ Using --variables instead of --variables-file (causes Windows command line length errors!)
 ❌ Missing --variables-file parsing
 ❌ Printing debug to stdout (breaks JSON parsing)
@@ -445,6 +496,54 @@ if __name__ == "__main__":
     main()
 ```
 
+## ⭐ API 호출에 대한 중요 지침 (수정 시에도 동일)
+
+**API 호출은 반드시 API_CALL 스텝 + MCP를 사용하세요!**
+
+❌ 잘못된 방법:
+- PYTHON_SCRIPT에서 requests 라이브러리로 직접 API 호출
+- API_CALL 스텝 없이 Python에서 처리
+
+✅ 올바른 방법:
+- API_CALL 스텝 타입 사용
+- MCP가 자동으로 처리 (인증, 재시도, 캐싱, 헤더 등)
+- 변수 포맷팅도 자동
+
+**장점:**
+1. 🔐 보안: 인증 자동 처리
+2. 🔄 재시도: 자동 재시도 (Exponential Backoff)
+3. ⚡ 캐싱: 응답 자동 캐시
+4. 📋 로깅: 상세 로깅
+5. 🌐 헤더: 브라우저 헤더 자동 추가 (WAF 우회)
+6. 🧬 변수: 자동 포맷팅
+
+---
+
+## Step Types (When Modifying):
+
+- **API_CALL**: REST API HTTP call
+  * config MUST have: 
+    {
+      "method": "GET|POST|PUT|DELETE|PATCH",
+      "url": "https://api.example.com/endpoint",  ← ⭐ Base URL ONLY (no query string!)
+      "query_params": {                           ← ⭐ IMPORTANT: "query_params" NOT "params"!
+        "param1": "{variable_name}",              ← Use single braces {variable_name}
+        "param2": "literal_value",
+        "limit": 10
+      },
+      "headers": {"Authorization": "Bearer {token}"},
+      "body": null or {...}
+    }
+  * ⭐ CRITICAL Rules:
+    1. URL must be base path ONLY - no query string in URL!
+    2. ALL query parameters must go in "query_params" object
+    3. Use "query_params" NOT "params" - this is REQUIRED!
+    4. Variables use single braces: {variable_name}
+    5. input_mapping: maps workflow variables to step variables
+    6. output_mapping: maps response to workflow variables
+  * ❌ WRONG: "url": "https://api.example.com/search?q={query}&limit=10", "params": {}
+  * ✅ RIGHT: "url": "https://api.example.com/search", "query_params": {"q": "{query}", "limit": 10}
+
 ## Response Format:
 ```json
 {
@@ -485,6 +584,17 @@ if __name__ == "__main__":
 **Fix**: Use structured JSON output with proper keys
 
 ## Important Rules:
+
+### API 호출 우선순위 (수정 시에도 적용!)
+- ✅ API_CALL 스텝 사용 (MCP 자동 처리)
+- ✅ query_params에 모든 파라미터 정의
+- ✅ 베이스 URL만 작성 (쿼리스트링 X)
+- ❌ PYTHON_SCRIPT에서 requests/urllib 직접 사용 금지
+- ❌ API_CALL 없이 Python에서 API 호출 금지
+- **이유**: MCP가 인증, 재시도, 캐싱, WAF 우회, 헤더 등을 자동으로 처리
+
+---
+
 - ✅ ALWAYS provide COMPLETE, executable code
 - ✅ Follow ALL Python script rules above
 - ✅ Fix root cause, not symptoms

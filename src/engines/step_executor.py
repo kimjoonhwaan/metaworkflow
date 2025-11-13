@@ -13,6 +13,7 @@ from langchain.schema import HumanMessage, SystemMessage
 from src.database.models import StepType
 from src.utils import settings, get_logger
 from src.mcp.email_server import email_mcp
+from src.mcp.api_server import api_mcp
 
 logger = get_logger("step_executor")
 
@@ -27,6 +28,7 @@ class StepExecutor:
             temperature=1
         )
         self.mcp_email = email_mcp
+        self.mcp_api = api_mcp
     
     async def execute_step(
         self,
@@ -121,6 +123,29 @@ class StepExecutor:
             "output": result,
             "raw_response": result,
         }
+    
+    async def _execute_api_call(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute API call step via API MCP"""
+        logger.info("[API_CALL] Calling API via MCP...")
+        
+        try:
+            result = await self.mcp_api.call(config, variables)
+            
+            logger.info(f"[API_CALL] Result: {result.get('status')}")
+            
+            return {
+                "success": result.get("status") == "success",
+                "output": result.get("data"),
+                "status_code": result.get("status_code"),
+                "error": result.get("error")
+            }
+        except Exception as e:
+            logger.error(f"[API_CALL] Error: {e}", exc_info=True)
+            return {
+                "success": False,
+                "output": None,
+                "error": str(e)
+            }
     
     async def _execute_python_script(
         self,
