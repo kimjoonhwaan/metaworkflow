@@ -1,0 +1,283 @@
+
+
+
+
+
+
+<![if !IE]>
+<!DOCTYPE html>
+<html lang="ko-KR" class="no-js">
+<![endif]>
+<!--[if IE]>
+	<!--[if gte IE 9]>
+	<!DOCTYPE html>
+	<html lang="ko-KR" class="no-js">
+    <![endif]-->
+	<!--[if lte IE 8]>
+	<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+    <![endif]-->
+<![endif]-->
+<head>
+	<!-- [import: import.jsp] -->
+        
+    <meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>대국민 전력수급현황 공유 시스템</title>
+	<meta name="description" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+    		
+    <link rel="stylesheet" type="text/css" href="/css/normalize.css">
+	<link rel="stylesheet" type="text/css" href="/css/main.css">
+	<link rel="stylesheet" type="text/css" href="/css/bootstrap.css">
+	<link rel="stylesheet" type="text/css" href="/css/font-awesome.css">
+	<link rel="stylesheet" type="text/css" href="/css/menustyle.css">
+	<link rel="stylesheet" type="text/css" href="/css/menu.css">
+	<link rel="stylesheet" type="text/css" href="/css/defualt.css">
+	<link rel="stylesheet" type="text/css" href="/css/custom.css">
+	<link rel="stylesheet" type="text/css" href="/bower_components/Buttons/css/buttons.css">
+	<link rel="stylesheet" type="text/css" href="/css/table.css">
+	<link rel="stylesheet" type="text/css" href="/css/defaultTableTheme.css" media="screen" >
+	<link rel="stylesheet" type="text/css" href="/datepicker/jquery.ui.all.css">
+	<link rel="stylesheet" type="text/css" href="/datepicker/demos.css">
+	
+	<!--[if lte IE 9]>
+		<link rel="stylesheet" type="text/css" href="/css/ie9.css">
+	<![endif]-->
+	<script type="text/javascript" src="/js/vendor/modernizr-2.6.2.min.js"></script>
+	<script type="text/javascript" src="/js/jquery.min.js"></script> 
+    <script type="text/javascript" src="/js/json2.js" ></script>
+    <script type="text/javascript" src="/js/common.js" ></script>
+    <script type="text/javascript" src="/datepicker/jquery.ui.core.js"></script>
+	<script type="text/javascript" src="/datepicker/jquery.ui.widget.js"></script>
+	<script type="text/javascript" src="/datepicker/jquery.ui.datepicker.js"></script>
+	<script type="text/javascript" src="/datepicker/jquery.ui.datepicker-ko.js"></script>
+	<script type="text/javascript">
+	<!--
+	$(document).ready(function() {
+		var message = $("#message").val();
+		if (message != "" && typeof(message) !== "undefined") {
+        	alert(message);
+		}
+    })
+	//-->
+	</script>
+    
+
+		
+		
+		
+		
+    <script type="text/javascript">
+    function linkPage(pageIndex){
+    	go('/smp.do',{"pageIndex": pageIndex, "startDate" : $("#startDate").val(), "searchUseYn": "Y", "areaCd": $("#areaCd").val()});
+    }
+    
+    function downloadSmpCSV(){
+    	if($("#searchUseYn").val() == "Y"){
+    		go('/downloadSmpCSV.do', {"startDate" : $("#startDate").val(), "searchUseYn": "Y", "areaCd": $("#areaCd").val()});
+    	}else{
+    		alert("조회 후 실행하시기 바랍니다.")
+    	}
+    }
+    
+    function fSearch(){
+    	var sDate = $("#startDate").val();
+    	var startDate = new Date(sDate);
+    	
+    	$("#startDate").val($("#altStartDate").val());
+    	$("#searchUseYn").val("Y");
+		document.getElementById("form_01").action = '/smp.do';
+		document.getElementById("form_01").submit();
+    	
+    }
+    $(document).ready(function(){
+    	var startDate = {
+                dateFormat: "yy-mm-dd",
+                defaultDate: new Date(new Date().setDate(new Date().getDate()-1)).format('yyyy-MM-dd')
+        };
+    	
+        $("#altStartDate").datepicker(startDate, $.datepicker.regional["ko"]);
+    });
+    </script>
+    
+</head>
+<form id="form_01" name="form_01" style="height:100%;" action="/smp.do;jsessionid=3695DA5C5E54D6FCF5D64CF34B4D1B57" method="post">
+<input type="hidden" id="startDate" name="startDate" value="20251114"/>
+<input type="hidden" id="searchUseYn" name="searchUseYn" value="Y"/>
+<table width="100%" border="0" cellspacing="0" cellpadding="0" id="page_table">
+   <!-- [import: header.jsp] -->
+   
+
+
+
+
+
+   <tr>
+   <td colspan="2" class="header_table"><div id="top_menu">
+        <div class="title"><img src="/images/logoKpx.png" width="65" height="35" alt="" class="logo"/>대국민 전력수급현황 공유 시스템 </div>
+        <div></div>
+        <div class="buttons"><a href="/main.do"><img src="/images/btnHome.png" rel="/images/btnHomeOver.png" width="50" height="60" alt="" class="overlay"/></a>
+        					 
+        					 					 
+        					 
+        					 
+        					 	
+        					         					 
+        					 
+        					 
+        					 
+        </div>
+    </div></td>
+    </tr>
+    <input type="hidden" id="message" name="message" value="" />
+    <script>
+    </script>
+    
+    
+
+		
+		
+		
+		
+   <!-- [import: header.jsp] -->
+   <tr>
+   <!-- [import: menu.jsp] -->
+   
+
+
+
+
+
+
+
+
+
+    <td rowspan="2" class="nav_table"><div id="right_nav"> <span>메뉴</span>
+        <div class="clearfix">
+          <aside class="sidebar">
+            <nav class="sidebar-nav">
+              <ul id="menu">
+                <li ><a href="#">공지사항<span class="fa fa arrow"></span></a>
+<ul>
+<li ><a href="/notice.do"><i class="fa fa-lightbulb-o"></i>공지사항</a></li>
+</ul>
+</li>
+<li ><a href="#">전력수급현황 데이터<span class="fa fa arrow"></span></a>
+<ul>
+<li ><a href="/openapi.do"><i class="fa fa-laptop"></i>오픈 API</a></li>
+<li ><a href="/sukub.do"><i class="fa fa-bolt"></i>전력수급현황조회</a></li>
+<li ><a href="/smp.do"><i class="fa fa-krw"></i>계통한계가격조회</a></li>
+<li ><a href="/smp_day_avg.do"><i class="fa fa-krw"></i>계통한계가격(일평균)</a></li>
+<li ><a href="/smp_month_avg.do"><i class="fa fa-krw"></i>계통한계가격(월평균)</a></li>
+<li ><a href="/chejusukub.do"><i class="fa fa-bolt"></i>제주전력수급조회</a></li>
+<li ><a href="/sumper.do"><i class="fa fa-bolt"></i>신규 api 조회 페이지</a></li>
+</ul>
+</li>
+
+              </ul>
+            </nav>
+          </aside>
+        </div>
+      </div></td>
+   
+  
+
+
+			
+   <!-- [import: menu.jsp] --> 
+   <td class="table_header onerow_option"><div class="title"><i class="fa fa-user"></i>계통한계가격 조회</div>
+        <div class="option">
+        <label>지역</label><!-- <select id="areaCd" name="areaCd">
+          		  <option value="" label="전체"/>
+         	<select> -->
+         	<select id="areaCd" name="areaCd">
+         		<option value="1" selected="selected">육지</option><option value="9">제주</option>
+         	</select>
+        <label>거래일자</label><input class="span3" id="altStartDate" name="altStartDate" type="text" value="20251114" readonly/><a href="#" class="button button-3d-primary button-rounded button-small" onclick="javascript:fSearch();" ><i class="fa fa-search"></i>조 회</a><a href="/smp.do" class="button button-3d button-rounded button-small"><i class="fa fa-refresh"></i>초기화</a></div>
+    </td>
+  </tr>
+  <tr>
+    <td class="contents_td"><!-- 테이블 시작 -->
+ <!-- 테이블 시작 -->
+<div class="tableWrap">
+  <div class="table_container">
+        	<div class="table_grid table_height">
+        		<table id="tableDefualt" cellpadding="0" cellspacing="0" class="tableScroll1st">
+              <thead>
+                <tr>
+                 <th width="30%">거래일자</th>
+                 <th width="30%">거래시간대</th> 
+                 <th width="10%">지역코드</th>
+	             <th width="30%">계통한계가격</th>
+                </tr>
+              </thead>
+                
+            </table>
+        	</div>
+        	<div class="clear"></div>
+        </div>
+   <div id="paginationWrap">
+       <ul>
+           <li><a href="#" class="eis_current eis_radiusFilter">1</a></li>
+    
+       </ul>
+   </div>
+ 
+  <div class="buttonWrap"> 
+            <a href="#" class="button button-3d button-rounded" onclick="javascript:downloadSmpCSV();" class="btn btnNormal">저 장</a>
+  </div>
+            </div>
+</div>          
+     </td>
+  </tr>
+  <tr>
+  <td colspan="2">
+  <!-- [import: footer.jsp] -->
+	
+
+
+
+
+	<script type="text/javascript" src="/js/plugins.js"></script> 
+	<script type="text/javascript" src="/js/main.js"></script> 
+	<script type="text/javascript" src="/js/bootstrap.js"></script> 
+	<script type="text/javascript" src="/js/jquery.metisMenu.js"></script> 
+	<script>
+	    $(function () {
+	        $('#menu').metisMenu({
+	          toggle: false
+	        });
+	    });		
+	</script> 
+	<script type="text/javascript" src="/bower_components/Buttons/js/buttons.js"></script> 
+	<script type="text/javascript" src="/js/jquery.fixedheadertable.js"></script> 
+	<script type="text/javascript" src="/js/tablefix.js"></script>
+	      <table width="100%" style="background: #515151; text-align: center; color: #e1e1e1; font-size:13.4px; ">
+	      	<tr>
+	      		<td style="padding-left:150px;"></td>
+	      		<td><img src="/images/kpx_logo.png"></td>
+	      		<td style="padding-top: 4px;"><span style="padding-top:3px;">(58217)전라남도 나주시 빛가람로 625(빛가람동) <br/>
+	            Tel : 061.330.8100 Fax : 061.330.8299 <br/> 
+				COPYRIGHT(C) 2015 KOREA POWER EXCHANGE(KPX) ALL RIGHTS RESERVED</span></td>
+				<td>
+<table width="135" border="0" cellpadding="2" cellspacing="0" title="Click to Verify - This site chose Symantec SSL for secure e-commerce and confidential communications.">
+<tr>
+<td width="135" align="center" valign="top"><script type="text/javascript" src="https://seal.websecurity.norton.com/getseal?host_name=openapi.kpx.or.kr&amp;size=XS&amp;use_flash=NO&amp;use_transparent=NO&amp;lang=ko"></script><br />
+<a href="http://www.symantec.com/ssl-certificates" target="_blank"  style="color:#000000; text-decoration:none; font:bold 7px verdana,sans-serif; letter-spacing:.5px; text-align:center; margin:0px; padding:0px;"></a></td>
+</tr>
+</table>
+</td>
+	      	</tr>
+	      </table>
+	
+	
+	
+
+	
+	<!-- [import: footer.jsp] -->
+	</td>
+  </tr>
+</table>
+</form>
+</body>
+</html>

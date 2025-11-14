@@ -118,32 +118,65 @@ class StepExecutor:
         
         logger.info(f"LLM response: {result[:200]}...")
         
+        # ✅ 개선된 응답 구조: 구조화된 output 제공
         return {
             "success": True,
-            "output": result,
-            "raw_response": result,
+            "output": {
+                "response": result,                    # LLM 응답
+                "prompt": formatted_prompt,            # 실제 사용한 프롬프트
+                "system_prompt": system_prompt,        # 시스템 프롬프트
+                "model": config.get("model", "gpt-4"), # 모델 정보
+                "raw_response": result                 # 원본 응답 (호환성)
+            }
         }
     
     async def _execute_api_call(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute API call step via API MCP"""
+        """Execute API call step via API MCP
+        
+        Returns structured output with all API response data:
+        {
+            "success": bool,
+            "output": {
+                "data": <api_response>,
+                "status_code": int,
+                "headers": dict,
+                "status": str,
+                "error": str or None
+            },
+            "error": str or None
+        }
+        """
         logger.info("[API_CALL] Calling API via MCP...")
         
         try:
             result = await self.mcp_api.call(config, variables)
             
             logger.info(f"[API_CALL] Result: {result.get('status')}")
+            logger.debug(f"[API_CALL] Full result: {result}")
             
+            # ✅ 통일된 응답 구조: 모든 필드를 "output" 안에 포함
             return {
                 "success": result.get("status") == "success",
-                "output": result.get("data"),
-                "status_code": result.get("status_code"),
+                "output": {
+                    "data": result.get("data"),                      # API 응답 데이터
+                    "status_code": result.get("status_code"),        # HTTP 상태 코드
+                    "headers": result.get("headers", {}),            # 응답 헤더
+                    "status": result.get("status"),                  # 성공/실패 상태
+                    "error": result.get("error")                     # 에러 메시지
+                },
                 "error": result.get("error")
             }
         except Exception as e:
             logger.error(f"[API_CALL] Error: {e}", exc_info=True)
             return {
                 "success": False,
-                "output": None,
+                "output": {
+                    "data": None,
+                    "status_code": None,
+                    "headers": {},
+                    "status": "error",
+                    "error": str(e)
+                },
                 "error": str(e)
             }
     
@@ -274,25 +307,94 @@ class StepExecutor:
                 pass
     
     async def _execute_condition(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute condition evaluation step"""
+        """Execute condition evaluation step with safe evaluation
+        
+        Supports basic comparison and logical operators:
+        - Comparison: ==, !=, <, >, <=, >=
+        - Logical: and, or, not
+        - Examples: "status == 'success'", "count > 10", "status == 'done' and error is None"
+        """
         logger.info("Executing condition evaluation")
         
         condition = config.get("condition", "True")
+        logger.debug(f"[CONDITION] Evaluating: {condition}")
         
-        # Evaluate condition with variables
+        # ✅ 보안 개선: 제한된 평가 환경 사용
         try:
-            result = eval(condition, {"__builtins__": {}}, variables)
+            # 안전한 연산자만 허용하는 환경 구성
+            safe_dict = {
+                "__builtins__": {},  # 빌트인 함수 차단
+                "True": True,
+                "False": False,
+                "None": None,
+                # 안전한 함수만 추가
+                "len": len,
+                "str": str,
+                "int": int,
+                "float": float,
+                "bool": bool,
+            }
+            
+            # 변수 추가
+            safe_dict.update(variables)
+            
+            logger.debug(f"[CONDITION] Available variables: {list(variables.keys())}")
+            
+            # eval 실행
+            result = eval(condition, safe_dict)
+            
+            logger.info(f"[CONDITION] Result: {result}")
+            
+            return {
+                "success": True,
+                "output": {
+                    "condition": condition,
+                    "result": result,
+                    "condition_met": bool(result),
+                    "variables_used": list(variables.keys())
+                },
+                "condition_met": bool(result),
+            }
+        
+        except SyntaxError as e:
+            logger.error(f"[CONDITION] Syntax error in condition: {e}")
+            return {
+                "success": False,
+                "output": {
+                    "condition": condition,
+                    "result": False,
+                    "condition_met": False,
+                    "error": f"Syntax error: {str(e)}"
+                },
+                "error": f"Condition syntax error: {str(e)}",
+                "condition_met": False,
+            }
+        except NameError as e:
+            logger.error(f"[CONDITION] Variable not found: {e}")
+            return {
+                "success": False,
+                "output": {
+                    "condition": condition,
+                    "result": False,
+                    "condition_met": False,
+                    "error": f"Variable not found: {str(e)}"
+                },
+                "error": f"Condition variable error: {str(e)}",
+                "condition_met": False,
+            }
         except Exception as e:
-            logger.error(f"Condition evaluation failed: {e}")
-            result = False
-        
-        logger.info(f"Condition result: {result}")
-        
-        return {
-            "success": True,
-            "output": result,
-            "condition_met": bool(result),
-        }
+            logger.error(f"[CONDITION] Evaluation failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "output": {
+                    "condition": condition,
+                    "result": False,
+                    "condition_met": False,
+                    "error": str(e)
+                },
+                "error": f"Condition evaluation error: {str(e)}",
+                "condition_met": False,
+            }
     
     async def _execute_approval(self, config: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
         """Execute approval step (returns waiting state)"""
@@ -324,17 +426,32 @@ class StepExecutor:
                 bcc = config.get("bcc", None)
                 html = config.get("html", False)
                 
-                # Format parameters with variables
-                try:
-                    to = to.format(**variables) if to else ""
-                    subject = subject.format(**variables) if subject else ""
-                    body = body.format(**variables) if body else ""
-                    if cc:
-                        cc = cc.format(**variables)
-                    if bcc:
-                        bcc = bcc.format(**variables)
-                except KeyError as e:
-                    logger.warning(f"Variable not found in email template: {e}")
+                # ✅ 개선된 변수 포맷팅 (공백 정리 + 예외 처리)
+                import re
+                
+                def format_with_variables(template: str, vars: Dict[str, Any]) -> str:
+                    """변수 포맷팅 (공백 제거 및 예외 처리)"""
+                    if not template:
+                        return ""
+                    try:
+                        # 공백이 있는 { variable } 패턴을 {variable}로 정리
+                        cleaned = re.sub(r'\{\s+(\w+)\s+\}', r'{\1}', template)
+                        return cleaned.format(**vars)
+                    except KeyError as e:
+                        logger.warning(f"Variable '{e}' not found in email template, using original: {template}")
+                        return template
+                    except Exception as e:
+                        logger.error(f"Error formatting email template: {e}")
+                        return template
+                
+                # Apply formatting
+                to = format_with_variables(to, variables)
+                subject = format_with_variables(subject, variables)
+                body = format_with_variables(body, variables)
+                if cc:
+                    cc = format_with_variables(cc, variables)
+                if bcc:
+                    bcc = format_with_variables(bcc, variables)
                 
                 logger.info(f"[NOTIFICATION] Email config: to={to}, subject={subject[:50]}...")
                 

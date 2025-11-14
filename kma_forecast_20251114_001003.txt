@@ -1,0 +1,23 @@
+{
+  "data": {
+    "response": {
+      "header": {
+        "resultCode": "03",
+        "resultMsg": "NO_DATA"
+      }
+    }
+  },
+  "status_code": 200,
+  "headers": {
+    "date": "Thu, 13 Nov 2025 15:10:03 GMT",
+    "server": "Apache",
+    "content-type": "application/json;charset=UTF-8",
+    "content-language": "ko-KR",
+    "content-length": "65",
+    "set-cookie": "JSESSIONID=6E625B69CCA017B06CCF1CE17B238866; Path=/openApi; HttpOnly",
+    "keep-alive": "timeout=5, max=100",
+    "connection": "Keep-Alive"
+  },
+  "status": "success",
+  "error": null
+}

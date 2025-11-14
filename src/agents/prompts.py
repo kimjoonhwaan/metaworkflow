@@ -225,26 +225,72 @@ When you have enough information, respond with a JSON workflow definition:
 }
 ```
 
-## ⭐ API 호출에 대한 중요 지침
+## ⭐ API 호출 vs 웹 크롤링 구분 (매우 중요!)
 
-**API 호출은 반드시 API_CALL 스텝 + MCP를 사용하세요!**
+### REST API 호출 (JSON 응답) → **API_CALL 스텝 사용**
 
-❌ 잘못된 방법:
-- PYTHON_SCRIPT에서 requests 라이브러리로 직접 API 호출
-- API_CALL 스텝 없이 Python에서 처리
+**API_CALL을 사용해야 하는 경우:**
+- REST API 호출 (기상청, 뉴스 API, 금융 API 등)
+- JSON 응답 반환
+- 공식 API 엔드포인트
 
-✅ 올바른 방법:
-- API_CALL 스텝 타입 사용
-- MCP가 자동으로 처리 (인증, 재시도, 캐싱, 헤더 등)
-- 변수 포맷팅도 자동
-
-**장점:**
+**API_CALL의 장점:**
 1. 🔐 보안: 인증 자동 처리
 2. 🔄 재시도: 자동 재시도 (Exponential Backoff)
 3. ⚡ 캐싱: 응답 자동 캐시
 4. 📋 로깅: 상세 로깅
 5. 🌐 헤더: 브라우저 헤더 자동 추가 (WAF 우회)
 6. 🧬 변수: 자동 포맷팅
+
+❌ 잘못된 방법:
+- PYTHON_SCRIPT에서 requests로 직접 API 호출
+- API_CALL 스텝 없이 Python에서 처리
+
+✅ 올바른 방법:
+- API_CALL 스텝 타입 사용
+- MCP가 자동으로 처리
+
+---
+
+### HTML 크롤링 & 웹 스크래핑 → **PYTHON_SCRIPT 스텝 사용**
+
+**PYTHON_SCRIPT를 사용해야 하는 경우:**
+- HTML 크롤링 & 파싱 (BeautifulSoup)
+- 웹 스크래핑 (동적 콘텐츠)
+- HTML 선택자로 데이터 추출
+- 예: 네이버 뉴스, 블로그, 쇼핑몰 등
+
+**크롤링 요청 감지 키워드:**
+- "크롤링해줘", "웹사이트에서 긁어와", "HTML에서 추출해줘"
+- "뉴스 페이지에서 기사 가져와", "상품 정보 수집해줘"
+- "웹페이지의 데이터를 모아줘", "스크래핑해줘"
+
+**생성할 PYTHON_SCRIPT 요소:**
+```python
+# 필수 라이브러리
+import requests
+from bs4 import BeautifulSoup
+
+# 필수 헤더 (웹사이트 차단 우회)
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
+
+# 필수 처리
+1. User-Agent 헤더 추가 (WAF 우회)
+2. requests.get(url, headers=headers, timeout=10)
+3. BeautifulSoup으로 HTML 파싱
+4. CSS 선택자로 데이터 추출: soup.select('.item')
+5. 구조화된 JSON 출력
+```
+
+**metadata.python_requirements 필수 추가:**
+- 크롤링: `requests`, `beautifulsoup4`
+
+**크롤링 에러 처리:**
+- requests.exceptions.RequestException (타임아웃, 네트워크 오류)
+- BeautifulSoup 파싱 실패
+- HTML 선택자 없음 (빈 결과 처리)
 
 ---
 
@@ -273,6 +319,23 @@ When you have enough information, respond with a JSON workflow definition:
   * ❌ WRONG: "url": "https://api.example.com/search?q={query}&limit=10", "params": {}
   * ✅ RIGHT: "url": "https://api.example.com/search", "query_params": {"q": "{query}", "limit": 10}
 - **PYTHON_SCRIPT**: Execute Python code (provide complete code in "code" field)
+  * ⭐ 주요 사용 사례 (우선순위순):
+    1. **HTML 크롤링 & 파싱** (BeautifulSoup + requests) - 가장 흔함!
+    2. 데이터 변환 & 정제 (pandas, json processing)
+    3. 파일 처리 (PDF, CSV, Excel 파싱)
+    4. 이미지 처리 (PIL, resize, convert)
+    5. 복잡한 비즈니스 로직
+  * ⭐ 크롤링 코드 패턴 (필수!):
+    - import requests, from bs4 import BeautifulSoup
+    - headers = {'User-Agent': 'Mozilla/5.0...'}
+    - response = requests.get(url, headers=headers, timeout=10)
+    - soup = BeautifulSoup(response.text, 'html.parser')
+    - items = soup.select('.article-class')  (CSS 선택자)
+  * metadata.python_requirements에 필수 추가:
+    - 크롤링: requests, beautifulsoup4
+    - 데이터: pandas, numpy
+    - 파일: PyPDF2, python-docx, openpyxl
+    - 이미지: Pillow, pytesseract
 - **CONDITION**: Evaluate condition (config: {condition})
 - **APPROVAL**: Wait for user approval (config: {message})
 - **NOTIFICATION**: Send notification via MCP
@@ -309,14 +372,26 @@ When you have enough information, respond with a JSON workflow definition:
 - Add APPROVAL steps for workflows requiring human review
 
 ### 5. API 호출 우선순위
-- ✅ API_CALL 스텝 사용 (MCP 자동 처리)
+- ✅ API_CALL 스텝 사용 (MCP 자동 처리) - JSON API 응답만
 - ✅ query_params에 모든 파라미터 정의
 - ✅ 베이스 URL만 작성 (쿼리스트링 X)
-- ❌ PYTHON_SCRIPT에서 requests/urllib 직접 사용 금지
+- ❌ PYTHON_SCRIPT에서 requests/urllib 직접 사용 금지 (HTML 크롤링 제외!)
 - ❌ API_CALL 없이 Python에서 API 호출 금지
 - **이유**: MCP가 인증, 재시도, 캐싱, WAF 우회, 헤더 등을 자동으로 처리
 
-### 6. Common Mistakes to AVOID:
+### 6. HTML 크롤링 & 웹 스크래핑 규칙 (⭐ 매우 중요!)
+- ✅ HTML 크롤링은 PYTHON_SCRIPT 사용 (BeautifulSoup + requests)
+- ✅ User-Agent 헤더 필수 추가 (웹사이트 차단 우회)
+- ✅ CSS 선택자로 데이터 추출 (soup.select('.class-name'))
+- ✅ try-except로 네트워크 에러 처리
+- ✅ 구조화된 JSON으로 결과 반환
+- ✅ metadata.python_requirements에 requests, beautifulsoup4 추가
+- ❌ API_CALL로 HTML 크롤링 시도 금지
+- ❌ 파싱 없이 원본 HTML 반환 금지
+- ❌ User-Agent 헤더 없이 요청 금지 (WAF 차단됨)
+- **이유**: HTML은 반정형 데이터이므로 BeautifulSoup로 파싱 필수. API_CALL은 JSON API용
+
+### 7. Common Mistakes to AVOID:
 ❌ Using --variables instead of --variables-file (causes Windows command line length errors!)
 ❌ Missing --variables-file parsing
 ❌ Printing debug to stdout (breaks JSON parsing)
@@ -346,6 +421,65 @@ When you have enough information, respond with a JSON workflow definition:
    f.write(f"Line1: {x}\n")
    f.write(f"Line2: {y}\n")
    ```
+
+### 8. API 응답 형식 명시 (⭐ 매우 중요!)
+
+API 호출 후 데이터 파싱 시:
+
+**상황 1: response_format이 제공된 경우 (최고!)**
+워크플로우에서 API_CALL 스텝에 response_format 정보가 제공되면:
+```json
+"response_format": {
+  "data_path": "response.body.items.item",
+  "description": "response > body > items > item 배열"
+}
+```
+→ 지정된 경로로 PYTHON_SCRIPT에서 자동으로 데이터 추출 코드 생성
+
+**상황 2: response_format이 없는 경우 (사용자 질문)**
+KB에도 없고 response_format이 제공되지 않으면:
+
+1. ❓ **사용자에게 API 응답 형식 물어보기:**
+   ```python
+   # PYTHON_SCRIPT에서 대화식으로 진행
+   print("=" * 60)
+   print("❌ API 응답 형식을 명확히 알 수 없습니다.")
+   print("=" * 60)
+   print("\n📋 받은 API 응답 구조:")
+   print(json.dumps(api_response, indent=2)[:1000], file=sys.stderr)
+   print("\n❓ 데이터가 있는 위치를 알려주세요.", file=sys.stderr)
+   print("\n💡 예시:", file=sys.stderr)
+   print("  - response.body.items.item", file=sys.stderr)
+   print("  - response.data", file=sys.stderr)
+   print("  - data.results", file=sys.stderr)
+   user_path = input("입력: ").strip()
+   ```
+
+2. 📍 **사용자 입력을 받아 데이터 추출:**
+   ```python
+   def extract_by_path(obj, path):
+       # Extract data from specified path
+       result = obj
+       for key in path.split('.'):
+           result = result.get(key, {}) if isinstance(result, dict) else {}
+       return result
+   
+   items = extract_by_path(api_response, user_path)
+   
+   # dict to list conversion
+   if isinstance(items, dict):
+       items = list(items.values())
+   
+   return [it for it in items if isinstance(it, dict)]
+   ```
+
+3. ✅ **이후 데이터 처리:**
+   사용자가 지정한 경로로 데이터를 추출한 후 필터링/파싱 진행
+
+**상황 3: KB에 있는 경우 (향후)**
+향후 Knowledge Base에 API별 response_format이 저장되면 자동 적용
+
+---
 
 ## Conversation Flow:
 1. If information is missing → Ask questions (ready: false, questions: ["question1", "question2"])
@@ -496,7 +630,9 @@ if __name__ == "__main__":
     main()
 ```
 
-## ⭐ API 호출에 대한 중요 지침 (수정 시에도 동일)
+## ⭐ API 호출 vs 웹 크롤링 구분 (수정 시에도 동일!)
+
+### REST API 호출 (JSON 응답) → **API_CALL 스텝 수정**
 
 **API 호출은 반드시 API_CALL 스텝 + MCP를 사용하세요!**
 
@@ -509,6 +645,13 @@ if __name__ == "__main__":
 - MCP가 자동으로 처리 (인증, 재시도, 캐싱, 헤더 등)
 - 변수 포맷팅도 자동
 
+**수정 사항 (에러 시):**
+- query_params 검토 (파라미터 누락 확인)
+- headers 추가/수정 (User-Agent, Authorization)
+- body 포맷 검증
+- response 설정 추가 (JSONPath extract, field mapping)
+- output_mapping 확인 (변수명 충돌)
+
 **장점:**
 1. 🔐 보안: 인증 자동 처리
 2. 🔄 재시도: 자동 재시도 (Exponential Backoff)
@@ -516,6 +659,91 @@ if __name__ == "__main__":
 4. 📋 로깅: 상세 로깅
 5. 🌐 헤더: 브라우저 헤더 자동 추가 (WAF 우회)
 6. 🧬 변수: 자동 포맷팅
+
+---
+
+### HTML 크롤링 & 웹 스크래핑 → **PYTHON_SCRIPT 스텝 수정**
+
+**크롤링 요청 감지 키워드:**
+- "크롤링해줘", "웹사이트에서 긁어와", "HTML에서 추출해줘"
+- "뉴스 페이지에서 기사 가져와", "상품 정보 수집해줘"
+- "웹페이지의 데이터를 모아줘", "스크래핑해줘"
+
+**수정 사항 (에러 시):**
+- BeautifulSoup 선택자 최적화 (soup.select('.class-name'))
+- User-Agent 헤더 추가/수정 (WAF 우회)
+- tbody 체크 추가 (HTML 구조에 따라)
+- CSS 선택자 재검토 (0개 행 반환 문제)
+- 에러 처리 개선 (타임아웃, 404, 인코딩)
+- 결과 JSON 포맷 검증 (flat structure)
+- metadata.python_requirements에 requests, beautifulsoup4 확인
+
+**일반적인 수정:**
+- tbody 없는 HTML: `tr_list = table.find_all('tr')[1:]` (헤더 제외)
+- 낮은 선택도: 다양한 CSS 선택자 시도 (id > class > tag)
+- 응답 인코딩: `response.encoding = 'utf-8'` 또는 `force_encoding` 파라미터
+
+---
+
+### JSON 응답인데 HTML 기대 (혼합 API 호출)
+
+**문제 진단:**
+- API_CALL이 JSON 반환
+- PYTHON_SCRIPT가 HTML 기대 (BeautifulSoup)
+- resultList 비어있음 (데이터 없음)
+
+**수정 사항:**
+- input_mapping 검토 (어떤 변수명으로 전달?)
+- 응답 포맷 변환 필요 (JSON → HTML 테이블 또는 JSON 직접 처리)
+- 파라미터 검증 (날짜, 지역코드, 검색 조건)
+- output_mapping 검토 (변수명 충돌)
+
+---
+
+### 📋 JSON/API 응답 형식 처리 전략 (⭐ 매우 중요!)
+
+**상황 1: response_format이 정의된 경우**
+- API_CALL 응답을 받았을 때 response_format에 data_path가 있으면
+- PYTHON_SCRIPT에서 그 경로로 데이터 정확히 추출
+- 예: `api_response['response']['body']['items']['item']`
+
+**상황 2: response_format이 없는 경우 (사용자 질문) ✨ 권장!**
+- 대화형으로 사용자에게 API 응답 구조 확인
+- API 응답의 처음 1000자를 보여주기
+- 사용자가 데이터 위치를 입력 (예: "response.body.items.item")
+- 그 경로로 데이터 추출하는 코드 자동 생성
+
+**코드 예시:**
+```python
+def smart_extract_items(api_response, user_path=None):
+    # Extract data from user-specified path or interactively
+    if user_path:
+        # Extract using user-specified path
+        result = api_response
+        for key in user_path.split('.'):
+            result = result.get(key, {}) if isinstance(result, dict) else {}
+    else:
+        # Interactive mode
+        print("=" * 60, file=sys.stderr)
+        print("ERROR: Cannot determine API response format", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
+        print("\n[DEBUG] API Response structure:", file=sys.stderr)
+        print(json.dumps(api_response, indent=2)[:1000], file=sys.stderr)
+        print("\n[INPUT] Data location? (e.g., response.body.items.item)", file=sys.stderr)
+        user_input = input("Path: ").strip()
+        result = api_response
+        for key in user_input.split('.'):
+            result = result.get(key, {}) if isinstance(result, dict) else {}
+    
+    # Normalize dict to list
+    if isinstance(result, dict):
+        result = list(result.values())
+    
+    return [it for it in result if isinstance(it, dict)]
+```
+
+**상황 3: KB에 있는 경우 (향후)**
+- Knowledge Base에 API별 response_format이 저장되면 자동 적용
 
 ---
 
